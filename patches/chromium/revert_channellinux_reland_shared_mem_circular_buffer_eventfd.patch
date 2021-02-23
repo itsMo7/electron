@@ -1,0 +1,2735 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Shelley Vohr <shelley.vohr@gmail.com>
+Date: Tue, 23 Feb 2021 13:23:21 -0800
+Subject: Revert "ChannelLinux: reland: shared mem circular buffer + eventfd
+ trigger"
+
+This reverts commit 12b581a3dd36c0023279db86996c041c312edc61.
+
+diff --git a/base/memory/shared_memory_security_policy.h b/base/memory/shared_memory_security_policy.h
+index e581188a6153c97f7c6c2104dac0c7b6d953075a..bf356bb25cbf6fb1a2dbf408a503f542466c3ecc 100644
+--- a/base/memory/shared_memory_security_policy.h
++++ b/base/memory/shared_memory_security_policy.h
+@@ -7,15 +7,8 @@
+ 
+ #include <stddef.h>
+ 
+-#include "base/base_export.h"
+ #include "base/compiler_specific.h"
+ 
+-namespace mojo {
+-namespace core {
+-class ChannelLinux;
+-}  // namespace core
+-}  // namespace mojo
+-
+ namespace base {
+ 
+ namespace subtle {
+@@ -26,11 +19,10 @@ class PlatformSharedMemoryRegion;
+ // mapped. This can help prevent an attacker from spraying the address space of
+ // a process with shared memory mappings to bypass ASLR. For more details, see
+ // https://googleprojectzero.blogspot.com/2019/04/virtually-unlimited-memory-escaping.html
+-class BASE_EXPORT SharedMemorySecurityPolicy {
++class SharedMemorySecurityPolicy {
+  private:
+   friend class subtle::PlatformSharedMemoryRegion;
+   friend class SharedMemoryMapping;
+-  friend class mojo::core::ChannelLinux;
+ 
+   // Checks that a mapping with |size| can be created. Returns false if there is
+   // an overflow in internal calculations, or the max limit has been reached.
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index 244df419c989f27bda950747ad06cc9c4271c9a7..e283129dc86bd420f0fda748193e69c91fe1480c 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -2315,7 +2315,6 @@ static_library("browser") {
+     "//media/mojo/services",
+     "//media/webrtc",
+     "//mojo/core/embedder",
+-    "//mojo/core/embedder:features",
+     "//mojo/public/cpp/bindings",
+     "//net",
+     "//net:extras",
+diff --git a/chrome/browser/DEPS b/chrome/browser/DEPS
+index a9d34ba3f8db74f84b364f285219d998cb7e595e..c7d2eb52c2cb4f1380698a6e78cc1fbb9d81db9c 100644
+--- a/chrome/browser/DEPS
++++ b/chrome/browser/DEPS
+@@ -531,7 +531,4 @@ specific_include_rules = {
+   "chrome_content_browser_client\.cc" : [
+     "+content/public/browser/tts_controller.h",
+   ],
+-  "about_flags\.cc" : [
+-    "+mojo/core/embedder/features.h",
+-  ]
+ }
+diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
+index a7b3965124a6d59f95ae4367fe729264ec982c4b..4a8f441ed638062af03cfbdd04d8abf8a24dbfbd 100644
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -157,7 +157,6 @@
+ #include "media/media_buildflags.h"
+ #include "media/midi/midi_switches.h"
+ #include "media/webrtc/webrtc_switches.h"
+-#include "mojo/core/embedder/features.h"
+ #include "net/base/features.h"
+ #include "net/net_buildflags.h"
+ #include "net/nqe/effective_connection_type.h"
+@@ -3276,13 +3275,6 @@ const FeatureEntry kFeatureEntries[] = {
+      FEATURE_VALUE_TYPE(performance_manager::features::kDynamicTcmallocTuning)},
+ #endif  // BUILDFLAG(USE_TCMALLOC)
+ #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+-#if (defined(OS_CHROMEOS) || defined(OS_LINUX) || defined(OS_ANDROID)) && \
+-    !defined(OS_NACL)
+-    {"mojo-linux-sharedmem", flag_descriptions::kMojoLinuxChannelSharedMemName,
+-     flag_descriptions::kMojoLinuxChannelSharedMemDescription,
+-     kOsCrOS | kOsLinux | kOsAndroid,
+-     FEATURE_VALUE_TYPE(mojo::core::kMojoLinuxChannelSharedMem)},
+-#endif
+ #if defined(OS_ANDROID)
+     {"enable-site-isolation-for-password-sites",
+      flag_descriptions::kSiteIsolationForPasswordSitesName,
+diff --git a/chrome/browser/flag-metadata.json b/chrome/browser/flag-metadata.json
+index 69cbea368671a5fe6922294a9d587dc1702c2d85..0d0e1c4810e9ec447919482662de366a8454cc2d 100644
+--- a/chrome/browser/flag-metadata.json
++++ b/chrome/browser/flag-metadata.json
+@@ -3476,11 +3476,6 @@
+     "owners": [ "nazerke", "bling-flags@google.com" ],
+     "expiry_milestone": 92
+   },
+-  {
+-    "name": "mojo-linux-sharedmem",
+-    "owners": ["bgeffon", "rockot"],
+-    "expiry_milestone": 99
+-  },
+   {
+     "name": "mouse-subframe-no-implicit-capture",
+     "owners": [ "eirage", "nzolghadr", "input-dev" ],
+diff --git a/chrome/browser/flag_descriptions.cc b/chrome/browser/flag_descriptions.cc
+index 183403e6392fb892bb1d63223326cf3a379bfcfa..a8fd8789df73a627452d8a94f3a5eb599b92681e 100644
+--- a/chrome/browser/flag_descriptions.cc
++++ b/chrome/browser/flag_descriptions.cc
+@@ -1453,12 +1453,6 @@ const char kMobilePwaInstallUseBottomSheetName[] =
+ const char kMobilePwaInstallUseBottomSheetDescription[] =
+     "Enables use of a rich bottom sheet when offering mobile PWA installation.";
+ 
+-const char kMojoLinuxChannelSharedMemName[] =
+-    "Enable Mojo Shared Memory Channel";
+-const char kMojoLinuxChannelSharedMemDescription[] =
+-    "If enabled Mojo on Linux based platforms can use shared memory as an "
+-    "alternate channel for most messages.";
+-
+ const char kMouseSubframeNoImplicitCaptureName[] =
+     "Disable mouse implicit capture for iframe";
+ const char kMouseSubframeNoImplicitCaptureDescription[] =
+diff --git a/chrome/browser/flag_descriptions.h b/chrome/browser/flag_descriptions.h
+index fb95a99967c58da00b73fd271a826ae36906b671..7bc259c4d7491068e059f4bb36ae1827594e9fd7 100644
+--- a/chrome/browser/flag_descriptions.h
++++ b/chrome/browser/flag_descriptions.h
+@@ -859,9 +859,6 @@ extern const char kMobileIdentityConsistencyVarDescription[];
+ extern const char kMobilePwaInstallUseBottomSheetName[];
+ extern const char kMobilePwaInstallUseBottomSheetDescription[];
+ 
+-extern const char kMojoLinuxChannelSharedMemName[];
+-extern const char kMojoLinuxChannelSharedMemDescription[];
+-
+ extern const char kMouseSubframeNoImplicitCaptureName[];
+ extern const char kMouseSubframeNoImplicitCaptureDescription[];
+ 
+diff --git a/mojo/core/BUILD.gn b/mojo/core/BUILD.gn
+index ae3c1b2386f991b818d9e083aebd3912a9d8ed94..aeb77ddd815f7dd6d545df3bd768cf05a3468041 100644
+--- a/mojo/core/BUILD.gn
++++ b/mojo/core/BUILD.gn
+@@ -105,7 +105,6 @@ template("core_impl_source_set") {
+ 
+     public_deps = [
+       "//base",
+-      "//mojo/core/embedder:features",
+       "//mojo/core/ports",
+       "//mojo/public/c/system:headers",
+       "//mojo/public/cpp/platform",
+@@ -125,15 +124,6 @@ template("core_impl_source_set") {
+           "channel_posix.h",
+         ]
+       }
+-
+-      if ((is_linux || is_chromeos || is_android) && !is_nacl) {
+-        sources += [
+-          "channel_linux.cc",
+-          "channel_linux.h",
+-        ]
+-
+-        public += [ "channel_linux.h" ]
+-      }
+     }
+ 
+     if (is_mac) {
+diff --git a/mojo/core/channel.cc b/mojo/core/channel.cc
+index 86094043e0eb97ca48211b93d069f8ad32668cfa..4fe4251049b8694ef3d65e88d7368c9ad95a6a48 100644
+--- a/mojo/core/channel.cc
++++ b/mojo/core/channel.cc
+@@ -480,7 +480,9 @@ class Channel::ReadBuffer {
+     data_ = MakeAlignedBuffer(size_);
+   }
+ 
+-  ~ReadBuffer() { DCHECK(data_); }
++  ~ReadBuffer() {
++    DCHECK(data_);
++  }
+ 
+   const char* occupied_bytes() const {
+     return data_.get() + num_discarded_bytes_;
+@@ -727,19 +729,5 @@ bool Channel::OnControlMessage(Message::MessageType message_type,
+   return false;
+ }
+ 
+-// Currently only Non-nacl CrOs, Linux, and Android support upgrades.
+-#if defined(OS_NACL) || \
+-    (!(defined(OS_CHROMEOS) || defined(OS_LINUX) || defined(OS_ANDROID)))
+-// static
+-MOJO_SYSTEM_IMPL_EXPORT bool Channel::SupportsChannelUpgrade() {
+-  return false;
+-}
+-
+-MOJO_SYSTEM_IMPL_EXPORT void Channel::OfferChannelUpgrade() {
+-  NOTREACHED();
+-  return;
+-}
+-#endif
+-
+ }  // namespace core
+ }  // namespace mojo
+diff --git a/mojo/core/channel.h b/mojo/core/channel.h
+index 6e672f0527f994dded882548b9343d518ca31e1d..3b01b391125b9abf55b4499a008b9ffb50b0e32a 100644
+--- a/mojo/core/channel.h
++++ b/mojo/core/channel.h
+@@ -76,16 +76,6 @@ class MOJO_SYSTEM_IMPL_EXPORT Channel
+ #endif
+       // A normal message that uses Header and can contain extra header values.
+       NORMAL,
+-
+-      // The UPGRADE_OFFER control message offers to upgrade the channel to
+-      // another side who has advertised support for an upgraded channel.
+-      UPGRADE_OFFER,
+-      // The UPGRADE_ACCEPT control message is returned when an upgrade offer is
+-      // accepted.
+-      UPGRADE_ACCEPT,
+-      // The UPGRADE_REJECT control message is returned when the receiver cannot
+-      // or chooses not to upgrade the channel.
+-      UPGRADE_REJECT,
+     };
+ 
+ #pragma pack(push, 1)
+@@ -291,15 +281,7 @@ class MOJO_SYSTEM_IMPL_EXPORT Channel
+ #if defined(OS_POSIX) && !defined(OS_NACL) && !defined(OS_MAC)
+   // At this point only ChannelPosix needs InitFeatures.
+   static void set_posix_use_writev(bool use_writev);
+-#endif  // defined(OS_POSIX) && !defined(OS_NACL) && !defined(OS_MAC)
+-
+-  // SupportsChannelUpgrade will return true if this channel is capable of being
+-  // upgraded.
+-  static bool SupportsChannelUpgrade();
+-
+-  // OfferChannelUpgrade will inform this channel that it should offer an
+-  // upgrade to the remote.
+-  void OfferChannelUpgrade();
++#endif
+ 
+   // Allows the caller to change the Channel's HandlePolicy after construction.
+   void set_handle_policy(HandlePolicy policy) { handle_policy_ = policy; }
+@@ -346,9 +328,6 @@ class MOJO_SYSTEM_IMPL_EXPORT Channel
+ 
+   Delegate* delegate() const { return delegate_; }
+ 
+-  // Allows the caller to determine the current HandlePolicy.
+-  HandlePolicy handle_policy() const { return handle_policy_; }
+-
+   // Called by the implementation when it wants somewhere to stick data.
+   // |*buffer_capacity| may be set by the caller to indicate the desired buffer
+   // size. If 0, a sane default size will be used instead.
+diff --git a/mojo/core/channel_linux.cc b/mojo/core/channel_linux.cc
+deleted file mode 100644
+index 60a508719d56a5660551dcde6e15d7c415aa826f..0000000000000000000000000000000000000000
+--- a/mojo/core/channel_linux.cc
++++ /dev/null
+@@ -1,869 +0,0 @@
+-// Copyright 2020 The Chromium Authors. All rights reserved.
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-#include "mojo/core/channel_linux.h"
+-
+-#include <fcntl.h>
+-#include <linux/futex.h>
+-#include <linux/memfd.h>
+-#include <sys/eventfd.h>
+-#include <sys/mman.h>
+-#include <sys/syscall.h>
+-#include <unistd.h>
+-
+-#include <algorithm>
+-#include <atomic>
+-#include <cstring>
+-#include <limits>
+-#include <memory>
+-
+-#include "base/bind.h"
+-#include "base/callback.h"
+-#include "base/files/scoped_file.h"
+-#include "base/location.h"
+-#include "base/logging.h"
+-#include "base/macros.h"
+-#include "base/memory/ptr_util.h"
+-#include "base/memory/ref_counted.h"
+-#include "base/memory/shared_memory_security_policy.h"
+-#include "base/message_loop/message_pump_for_io.h"
+-#include "base/metrics/histogram_macros.h"
+-#include "base/posix/eintr_wrapper.h"
+-#include "base/task_runner.h"
+-#include "base/time/time.h"
+-#include "build/build_config.h"
+-#include "mojo/core/core.h"
+-#include "mojo/core/embedder/features.h"
+-
+-namespace mojo {
+-namespace core {
+-
+-// DataAvailableNotifier is a simple interface which allows us to
+-// substitute how we notify the reader that we've made data available,
+-// implementations might be EventFDNotifier or FutexNotifier.
+-class DataAvailableNotifier {
+- public:
+-  DataAvailableNotifier() = default;
+-  explicit DataAvailableNotifier(base::RepeatingClosure callback)
+-      : callback_(std::move(callback)) {}
+-
+-  virtual ~DataAvailableNotifier() = default;
+-
+-  // The writer should notify the reader by invoking Notify.
+-  virtual bool Notify() = 0;
+-
+-  // A reader should clear the notification (if appropriate) by calling Clear.
+-  virtual bool Clear() = 0;
+-
+-  // Is_valid will return true if the implementation is valid and can be used.
+-  virtual bool is_valid() const = 0;
+-
+- protected:
+-  // DataAvailable will be called by implementations of DataAvailableNotifier to
+-  // dispatch this message into the registered callback.
+-  void DataAvailable() {
+-    DCHECK(callback_);
+-    callback_.Run();
+-  }
+-
+-  base::RepeatingClosure callback_;
+-};
+-
+-namespace {
+-
+-constexpr int kMemFDSeals = F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW;
+-
+-std::atomic_bool g_params_set{false};
+-std::atomic_bool g_use_shared_mem{false};
+-std::atomic_uint32_t g_shared_mem_pages{4};
+-
+-struct UpgradeOfferMessage {
+-  constexpr static int kEventFdNotifier = 1;
+-  constexpr static int kSupportedVersion = kEventFdNotifier;
+-
+-  constexpr static int kDefaultPages = 4;
+-
+-  int version = kSupportedVersion;
+-  int num_pages = kDefaultPages;
+-};
+-
+-constexpr size_t RoundUpToWordBoundary(size_t size) {
+-  return (size + (sizeof(void*) - 1)) & ~(sizeof(void*) - 1);
+-}
+-
+-base::ScopedFD CreateSealedMemFD(size_t size) {
+-  CHECK_GT(size, 0u);
+-  CHECK_EQ(size % base::GetPageSize(), 0u);
+-  base::ScopedFD fd(syscall(__NR_memfd_create, "mojo_channel_linux",
+-                            MFD_CLOEXEC | MFD_ALLOW_SEALING));
+-  if (!fd.is_valid()) {
+-    PLOG(ERROR) << "Unable to create memfd for shared memory channel";
+-    return {};
+-  }
+-
+-  if (ftruncate(fd.get(), size) < 0) {
+-    PLOG(ERROR) << "Unable to truncate memfd for shared memory channel";
+-    return {};
+-  }
+-
+-  // We make sure to use F_SEAL_SEAL to prevent any further changes to the
+-  // seals and F_SEAL_SHRINK guarantees that we won't accidentally decrease
+-  // the size, and similarly F_SEAL_GROW for increasing size.
+-  if (fcntl(fd.get(), F_ADD_SEALS, kMemFDSeals) < 0) {
+-    PLOG(ERROR) << "Unable to seal memfd for shared memory channel";
+-    return {};
+-  }
+-
+-  return fd;
+-}
+-
+-// It's very important that we always verify that the FD we're passing and the
+-// FD we're receive is a properly sealed MemFD.
+-bool ValidateFDIsProperlySealedMemFD(const base::ScopedFD& fd) {
+-  int seals = 0;
+-  if ((seals = fcntl(fd.get(), F_GET_SEALS)) < 0) {
+-    PLOG(ERROR) << "Unable to get seals on memfd for shared memory channel";
+-    return false;
+-  }
+-
+-  return seals == kMemFDSeals;
+-}
+-
+-// EventFDNotifier is an implementation of the DataAvailableNotifier interface
+-// which uses EventFDNotifier to signal the reader.
+-class EventFDNotifier : public DataAvailableNotifier,
+-                        public base::MessagePumpForIO::FdWatcher {
+- public:
+-  EventFDNotifier(EventFDNotifier&& efd) = default;
+-  ~EventFDNotifier() override { reset(); }
+-
+-  static constexpr int kEfdFlags = EFD_CLOEXEC | EFD_NONBLOCK;
+-
+-  static std::unique_ptr<EventFDNotifier> CreateWriteNotifier() {
+-    int fd = eventfd(0, kEfdFlags);
+-    if (fd < 0) {
+-      PLOG(ERROR) << "Unable to create an eventfd";
+-      return nullptr;
+-    }
+-
+-    return WrapFD(base::ScopedFD(fd));
+-  }
+-
+-  // The EventFD read notifier MUST be created on the IOThread. Luckily you're
+-  // typically creating the read notifier in response to an OFFER_UPGRADE
+-  // message which was received on the IOThread.
+-  static std::unique_ptr<EventFDNotifier> CreateReadNotifier(
+-      base::ScopedFD efd,
+-      base::RepeatingClosure cb,
+-      scoped_refptr<base::SingleThreadTaskRunner> io_task_runner) {
+-    DCHECK(io_task_runner->RunsTasksInCurrentSequence());
+-    DCHECK(cb);
+-
+-    return WrapFDWithCallback(std::move(efd), std::move(cb), io_task_runner);
+-  }
+-
+-  static bool KernelSupported() {
+-    // Try to create an eventfd with bad flags if we get -EINVAL it's supported
+-    // if we get -ENOSYS it's not, we also support -EPERM because seccomp
+-    // policies can cause it to be returned.
+-    int ret = eventfd(0, ~0);
+-    PCHECK(ret < 0 && (errno == EINVAL || errno == ENOSYS || errno == EPERM));
+-    return (ret < 0 && errno == EINVAL);
+-  }
+-
+-  // DataAvailableNotifier impl:
+-  bool Clear() override {
+-    uint64_t value = 0;
+-    ssize_t res = HANDLE_EINTR(
+-        read(fd_.get(), reinterpret_cast<void*>(&value), sizeof(value)));
+-    if (res < static_cast<int64_t>(sizeof(value))) {
+-      PLOG_IF(ERROR, errno != EWOULDBLOCK) << "eventfd read error";
+-    }
+-    return res == sizeof(value);
+-  }
+-
+-  bool Notify() override {
+-    uint64_t value = 1;
+-    ssize_t res = HANDLE_EINTR(write(fd_.get(), &value, sizeof(value)));
+-    return res == sizeof(value);
+-  }
+-
+-  bool is_valid() const override { return fd_.is_valid(); }
+-
+-  // base::MessagePumpForIO::FdWatcher impl:
+-  void OnFileCanReadWithoutBlocking(int fd) override {
+-    DCHECK(fd == fd_.get());
+-
+-    // Invoke the callback to inform them that data is available to read.
+-    DataAvailable();
+-  }
+-
+-  void OnFileCanWriteWithoutBlocking(int fd) override {}
+-
+-  base::ScopedFD take() { return std::move(fd_); }
+-  base::ScopedFD take_dup() {
+-    return base::ScopedFD(HANDLE_EINTR(dup(fd_.get())));
+-  }
+-
+-  void reset() {
+-    watcher_.reset();
+-    fd_.reset();
+-  }
+-
+-  int fd() { return fd_.get(); }
+-
+- private:
+-  explicit EventFDNotifier(base::ScopedFD fd) : fd_(std::move(fd)) {}
+-  explicit EventFDNotifier(
+-      base::ScopedFD fd,
+-      base::RepeatingClosure cb,
+-      scoped_refptr<base::SingleThreadTaskRunner> io_task_runner)
+-      : DataAvailableNotifier(std::move(cb)),
+-        fd_(std::move(fd)),
+-        io_task_runner_(io_task_runner) {
+-    DCHECK(watcher_);
+-    watcher_ =
+-        std::make_unique<base::MessagePumpForIO::FdWatchController>(FROM_HERE);
+-    WaitForEventFDOnIOThread();
+-  }
+-
+-  static std::unique_ptr<EventFDNotifier> WrapFD(base::ScopedFD fd) {
+-    return base::WrapUnique<EventFDNotifier>(
+-        new EventFDNotifier(std::move(fd)));
+-  }
+-
+-  static std::unique_ptr<EventFDNotifier> WrapFDWithCallback(
+-      base::ScopedFD fd,
+-      base::RepeatingClosure cb,
+-      scoped_refptr<base::SingleThreadTaskRunner> io_task_runner) {
+-    return base::WrapUnique<EventFDNotifier>(
+-        new EventFDNotifier(std::move(fd), std::move(cb), io_task_runner));
+-  }
+-
+-  void WaitForEventFDOnIOThread() {
+-    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
+-    base::CurrentIOThread::Get()->WatchFileDescriptor(
+-        fd_.get(), true, base::MessagePumpForIO::WATCH_READ, watcher_.get(),
+-        this);
+-  }
+-
+-  base::ScopedFD fd_;
+-  std::unique_ptr<base::MessagePumpForIO::FdWatchController> watcher_;
+-  scoped_refptr<base::SingleThreadTaskRunner> io_task_runner_;
+-
+-  DISALLOW_COPY_AND_ASSIGN(EventFDNotifier);
+-};
+-
+-}  // namespace
+-
+-// SharedBuffer is an abstraction around a region of shared memory, it has
+-// methods to facilitate safely reading and writing into the shared region.
+-// SharedBuffer only handles the access to the shared memory any notifications
+-// must be performed separately.
+-class ChannelLinux::SharedBuffer {
+- public:
+-  SharedBuffer(SharedBuffer&& other) = default;
+-  ~SharedBuffer() { reset(); }
+-
+-  enum class Error { kSuccess = 0, kGeneralError = 1, kControlCorruption = 2 };
+-
+-  static std::unique_ptr<SharedBuffer> Create(const base::ScopedFD& memfd,
+-                                              size_t size) {
+-    if (!memfd.is_valid()) {
+-      return nullptr;
+-    }
+-
+-    // Enforce the system shared memory security policy.
+-    if (!base::SharedMemorySecurityPolicy::AcquireReservationForMapping(size)) {
+-      LOG(ERROR)
+-          << "Unable to create shared buffer: unable to acquire reservation";
+-      return nullptr;
+-    }
+-
+-    uint8_t* ptr = reinterpret_cast<uint8_t*>(
+-        mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_LOCKED,
+-             memfd.get(), 0));
+-
+-    if (ptr == MAP_FAILED) {
+-      PLOG(ERROR) << "Unable to map shared memory";
+-
+-      // Always clean up our reservation if we actually fail to map.
+-      base::SharedMemorySecurityPolicy::ReleaseReservationForMapping(size);
+-      return nullptr;
+-    }
+-
+-    return base::WrapUnique<SharedBuffer>(new SharedBuffer(ptr, size));
+-  }
+-
+-  uint8_t* usable_region_ptr() const { return base_ptr_ + kReservedSpace; }
+-  size_t usable_len() const { return len_ - kReservedSpace; }
+-  bool is_valid() const { return base_ptr_ != nullptr && len_ > 0; }
+-
+-  void reset() {
+-    if (is_valid()) {
+-      if (munmap(base_ptr_, len_) < 0) {
+-        PLOG(ERROR) << "Unable to unmap shared buffer";
+-        return;
+-      }
+-
+-      base::SharedMemorySecurityPolicy::ReleaseReservationForMapping(len_);
+-      base_ptr_ = nullptr;
+-      len_ = 0;
+-    }
+-  }
+-
+-  // Only one side should call Initialize, this will initialize the first
+-  // sizeof(ControlStructure) bytes as our control structure. This should be
+-  // done when offering fast comms.
+-  void Initialize() { new (static_cast<void*>(base_ptr_)) ControlStructure; }
+-
+-  // TryWrite will attempt to append |data| of |len| to the shared buffer, this
+-  // call will only succeed if there is no one else trying to write AND there is
+-  // enough space currently in the buffer.
+-  Error TryWrite(const void* data, size_t len) {
+-    DCHECK(data);
+-    DCHECK(len);
+-
+-    if (len > usable_len()) {
+-      UMA_HISTOGRAM_COUNTS_100000(
+-          "Mojo.Channel.Linux.SharedMemWriteBytes_Fail_TooLarge", len);
+-      return Error::kGeneralError;
+-    }
+-
+-    if (!TryLockForWriting()) {
+-      UMA_HISTOGRAM_COUNTS_100000(
+-          "Mojo.Channel.Linux.SharedMemWriteBytes_Fail_NoLock", len);
+-      return Error::kGeneralError;
+-    }
+-
+-    // At this point we know that the space available can only grow because
+-    // we're the only writer we will write from write_pos -> end and 0 -> (len
+-    // - (end - write_pos)) where end is usable_len().
+-    uint32_t cur_read_pos = read_pos().load();
+-    uint32_t cur_write_pos = write_pos().load();
+-
+-    if (!ValidateReadWritePositions(cur_read_pos, cur_write_pos)) {
+-      UnlockForWriting();
+-      return Error::kControlCorruption;
+-    }
+-
+-    uint32_t space_available =
+-        usable_len() - NumBytesInUse(cur_read_pos, cur_write_pos);
+-
+-    if (space_available <= len) {
+-      UnlockForWriting();
+-      UMA_HISTOGRAM_COUNTS_100000(
+-          "Mojo.Channel.Linux.SharedMemWriteBytes_Fail_NoSpace", len);
+-
+-      return Error::kGeneralError;
+-    }
+-
+-    // If we do not have enough space from the current write position to the end
+-    // then we will be forced to wrap around. If we do have enough space we can
+-    // just start writing at the write position, otherwise we start writing at
+-    // the write position up to the end of the usable area and then we write the
+-    // remainder of the payload starting at position 0.
+-    if ((usable_len() - cur_write_pos) > len) {
+-      memcpy(usable_region_ptr() + cur_write_pos, data, len);
+-    } else {
+-      size_t copy1_len = usable_len() - cur_write_pos;
+-      memcpy(usable_region_ptr() + cur_write_pos, data, copy1_len);
+-      memcpy(usable_region_ptr(),
+-             reinterpret_cast<const uint8_t*>(data) + copy1_len,
+-             len - copy1_len);
+-    }
+-
+-    // Atomically update the write position.
+-    // We also verify that the write position did not advance, it SHOULD NEVER
+-    // advance since we were holding the write lock.
+-    if (write_pos().exchange((cur_write_pos + len) % usable_len()) !=
+-        cur_write_pos) {
+-      UnlockForWriting();
+-      return Error::kControlCorruption;
+-    }
+-
+-    UnlockForWriting();
+-
+-    return Error::kSuccess;
+-  }
+-
+-  Error TryReadLocked(void* data, uint32_t len, uint32_t* bytes_read) {
+-    uint32_t cur_read_pos = read_pos().load();
+-    uint32_t cur_write_pos = write_pos().load();
+-
+-    if (!ValidateReadWritePositions(cur_read_pos, cur_write_pos)) {
+-      return Error::kControlCorruption;
+-    }
+-
+-    // The most we can read is the smaller of what's in use in the shared memory
+-    // usable area and the buffer size we've been passed.
+-    uint32_t bytes_available_to_read =
+-        NumBytesInUse(cur_read_pos, cur_write_pos);
+-    bytes_available_to_read = std::min(bytes_available_to_read, len);
+-    if (bytes_available_to_read == 0) {
+-      *bytes_read = 0;
+-      return Error::kSuccess;
+-    }
+-
+-    // We have two cases when reading, the first is the read position is behind
+-    // the write position, in that case we can simply read all data between the
+-    // read and write position (up to our buffer size). The second case is when
+-    // the write position is behind the read position. In this situation we must
+-    // read from the read position to the end of the available area, and
+-    // continue reading from the 0 position up to the write position or the
+-    // maximum buffer size (bytes_available_to_read).
+-    if (cur_read_pos < cur_write_pos) {
+-      memcpy(data, usable_region_ptr() + cur_read_pos, bytes_available_to_read);
+-    } else {
+-      // We first start by reading to the end of the the usable area, if we
+-      // cannot read all the way (because our buffer is too small, we're done).
+-      uint32_t bytes_from_read_to_end = usable_len() - cur_read_pos;
+-      bytes_from_read_to_end =
+-          std::min(bytes_from_read_to_end, bytes_available_to_read);
+-      memcpy(data, usable_region_ptr() + cur_read_pos, bytes_from_read_to_end);
+-
+-      if (bytes_from_read_to_end < bytes_available_to_read) {
+-        memcpy(reinterpret_cast<uint8_t*>(data) + bytes_from_read_to_end,
+-               usable_region_ptr(),
+-               bytes_available_to_read - bytes_from_read_to_end);
+-      }
+-    }
+-
+-    // Atomically update the read position.
+-    // We also verify that the read position did not advance, it SHOULD NEVER
+-    // advance since we were holding the read lock.
+-    uint32_t new_read_pos =
+-        (cur_read_pos + bytes_available_to_read) % usable_len();
+-    if (read_pos().exchange(new_read_pos) != cur_read_pos) {
+-      *bytes_read = 0;
+-      return Error::kControlCorruption;
+-    }
+-
+-    *bytes_read = bytes_available_to_read;
+-    return Error::kSuccess;
+-  }
+-
+-  bool TryLockForReading() {
+-    // We return true if we set the flag (meaning it was false).
+-    return !read_flag().test_and_set(std::memory_order_acquire);
+-  }
+-
+-  void UnlockForReading() { read_flag().clear(std::memory_order_release); }
+-
+- private:
+-  struct ControlStructure {
+-    std::atomic_flag write_flag{false};
+-    std::atomic_uint32_t write_pos{0};
+-
+-    std::atomic_flag read_flag{false};
+-    std::atomic_uint32_t read_pos{0};
+-
+-    // If we're using a notification mechanism that relies on futex, make the
+-    // space available for one, if not these 32bits are unused. The kernel
+-    // requires they be 32bit aligned.
+-    alignas(4) volatile uint32_t futex = 0;
+-  };
+-
+-  // This function will only validate that the values provided for write and
+-  // read positions are valid based on usable size of the shared memory region.
+-  // This should ALWAYS be called before attempting a write or read using
+-  // atomically loaded values from the control structure.
+-  bool ValidateReadWritePositions(uint32_t read_pos, uint32_t write_pos) {
+-    // The only valid values for read and write positions are [0 - usable_len
+-    // - 1].
+-    if (write_pos >= usable_len()) {
+-      LOG(ERROR) << "Write position of shared buffer is currently beyond the "
+-                    "usable length";
+-      return false;
+-    }
+-
+-    if (read_pos >= usable_len()) {
+-      LOG(ERROR) << "Read position of shared buffer is currently beyond the "
+-                    "usable length";
+-      return false;
+-    }
+-
+-    return true;
+-  }
+-
+-  // NumBytesInUse will calculate how many bytes in the shared buffer are
+-  // currently in use.
+-  uint32_t NumBytesInUse(uint32_t read_pos, uint32_t write_pos) {
+-    uint32_t bytes_in_use = 0;
+-    if (read_pos <= write_pos) {
+-      bytes_in_use = write_pos - read_pos;
+-    } else {
+-      bytes_in_use = write_pos + (usable_len() - read_pos);
+-    }
+-
+-    return bytes_in_use;
+-  }
+-
+-  bool TryLockForWriting() {
+-    // We return true if we set the flag (meaning it was false).
+-    return !write_flag().test_and_set(std::memory_order_acquire);
+-  }
+-
+-  void UnlockForWriting() { write_flag().clear(std::memory_order_release); }
+-
+-  // This is the space we need to reserve in this shared buffer for our control
+-  // structure at the start.
+-  constexpr static size_t kReservedSpace =
+-      RoundUpToWordBoundary(sizeof(ControlStructure));
+-
+-  std::atomic_flag& write_flag() {
+-    DCHECK(is_valid());
+-    return reinterpret_cast<ControlStructure*>(base_ptr_)->write_flag;
+-  }
+-
+-  std::atomic_flag& read_flag() {
+-    DCHECK(is_valid());
+-    return reinterpret_cast<ControlStructure*>(base_ptr_)->read_flag;
+-  }
+-
+-  std::atomic_uint32_t& read_pos() {
+-    DCHECK(is_valid());
+-    return reinterpret_cast<ControlStructure*>(base_ptr_)->read_pos;
+-  }
+-
+-  std::atomic_uint32_t& write_pos() {
+-    DCHECK(is_valid());
+-    return reinterpret_cast<ControlStructure*>(base_ptr_)->write_pos;
+-  }
+-
+-  SharedBuffer(uint8_t* ptr, size_t len) : base_ptr_(ptr), len_(len) {}
+-
+-  uint8_t* base_ptr_ = nullptr;
+-  size_t len_ = 0;
+-
+-  DISALLOW_COPY_AND_ASSIGN(SharedBuffer);
+-};
+-
+-ChannelLinux::ChannelLinux(
+-    Delegate* delegate,
+-    ConnectionParams connection_params,
+-    HandlePolicy handle_policy,
+-    scoped_refptr<base::SingleThreadTaskRunner> io_task_runner)
+-    : ChannelPosix(delegate,
+-                   std::move(connection_params),
+-                   handle_policy,
+-                   io_task_runner),
+-      num_pages_(g_shared_mem_pages.load()) {}
+-
+-ChannelLinux::~ChannelLinux() = default;
+-
+-void ChannelLinux::Write(MessagePtr message) {
+-  if (!shared_mem_writer_ || message->has_handles() || reject_writes_) {
+-    // Let the ChannelPosix deal with this.
+-    return ChannelPosix::Write(std::move(message));
+-  }
+-
+-  // Can we use the fast shared memory buffer?
+-  SharedBuffer::Error write_result =
+-      write_buffer_->TryWrite(message->data(), message->data_num_bytes());
+-  if (write_result == SharedBuffer::Error::kGeneralError) {
+-    // We can handle this with the posix channel.
+-    return ChannelPosix::Write(std::move(message));
+-  } else if (write_result == SharedBuffer::Error::kControlCorruption) {
+-    // We will no longer be issuing writes via shared memory, and we will
+-    // dispatch a write error.
+-    reject_writes_ = true;
+-
+-    // Theoretically we could fall back to only using PosixChannel::Write
+-    // but if this situation happens it's likely something else is going
+-    // horribly wrong.
+-    io_task_runner_->PostTask(
+-        FROM_HERE, base::BindOnce(&ChannelLinux::OnWriteError, this,
+-                                  Channel::Error::kReceivedMalformedData));
+-    return;
+-  }
+-
+-  //  The write with shared memory was successful.
+-  UMA_HISTOGRAM_COUNTS_100000("Mojo.Channel.Linux.SharedMemWriteBytes",
+-                              message->data_num_bytes());
+-  write_notifier_->Notify();
+-}
+-
+-void ChannelLinux::OfferSharedMemUpgrade() {
+-  if (!offered_.test_and_set() && UpgradesEnabled()) {
+-    // Before we offer we need to make sure we can send handles, if we can't
+-    // then no point in trying.
+-    if (handle_policy() == HandlePolicy::kAcceptHandles) {
+-      OfferSharedMemUpgradeInternal();
+-    }
+-  }
+-}
+-
+-bool ChannelLinux::OnControlMessage(Message::MessageType message_type,
+-                                    const void* payload,
+-                                    size_t payload_size,
+-                                    std::vector<PlatformHandle> handles) {
+-  switch (message_type) {
+-    case Message::MessageType::UPGRADE_OFFER: {
+-      if (payload_size < sizeof(UpgradeOfferMessage)) {
+-        LOG(ERROR) << "Received an UPGRADE_OFFER without a payload";
+-        return true;
+-      }
+-
+-      const UpgradeOfferMessage* msg =
+-          reinterpret_cast<const UpgradeOfferMessage*>(payload);
+-      if (msg->version != UpgradeOfferMessage::kSupportedVersion) {
+-        LOG(ERROR) << "Reject shared mem upgrade unexpected version: "
+-                   << msg->version;
+-        RejectUpgradeOffer();
+-        return true;
+-      }
+-
+-      if (handles.size() != 2) {
+-        LOG(ERROR) << "Received an UPGRADE_OFFER without two FDs";
+-        RejectUpgradeOffer();
+-        return true;
+-      }
+-
+-      if (read_buffer_ || read_notifier_) {
+-        LOG(ERROR) << "Received an UPGRADE_OFFER on already upgraded channel";
+-        return true;
+-      }
+-
+-      base::ScopedFD memfd(handles[0].TakeFD());
+-      if (memfd.is_valid() && !ValidateFDIsProperlySealedMemFD(memfd)) {
+-        PLOG(ERROR) << "Passed FD was not properly sealed";
+-        DLOG(FATAL) << "MemFD was NOT properly sealed";
+-        memfd.reset();
+-      }
+-
+-      if (!memfd.is_valid()) {
+-        RejectUpgradeOffer();
+-        return true;
+-      }
+-
+-      if (msg->num_pages <= 0 || msg->num_pages > 128) {
+-        LOG(ERROR) << "SharedMemory upgrade offer was received with invalid "
+-                      "number of pages: "
+-                   << msg->num_pages;
+-        RejectUpgradeOffer();
+-      }
+-
+-      std::unique_ptr<DataAvailableNotifier> read_notifier;
+-      if (msg->version == UpgradeOfferMessage::kEventFdNotifier) {
+-        read_notifier = EventFDNotifier::CreateReadNotifier(
+-            handles[1].TakeFD(),
+-            base::BindRepeating(&ChannelLinux::SharedMemReadReady, this),
+-            io_task_runner_);
+-      }
+-
+-      if (!read_notifier) {
+-        RejectUpgradeOffer();
+-        return true;
+-      }
+-
+-      read_notifier_ = std::move(read_notifier);
+-
+-      std::unique_ptr<SharedBuffer> read_sb = SharedBuffer::Create(
+-          std::move(memfd), msg->num_pages * base::GetPageSize());
+-      if (!read_sb || !read_sb->is_valid()) {
+-        RejectUpgradeOffer();
+-        return true;
+-      }
+-
+-      read_buffer_ = std::move(read_sb);
+-
+-      read_buf_.resize(read_buffer_->usable_len());
+-      AcceptUpgradeOffer();
+-
+-      // And if we haven't offered ourselves just go ahead and do it now.
+-      OfferSharedMemUpgrade();
+-      return true;
+-    }
+-
+-    case Message::MessageType::UPGRADE_ACCEPT: {
+-      if (!write_buffer_ || !write_notifier_ || !write_notifier_->is_valid()) {
+-        LOG(ERROR) << "Received unexpected UPGRADE_ACCEPT";
+-
+-        // Clean up anything that may have been set.
+-        shared_mem_writer_ = false;
+-        write_buffer_.reset();
+-        write_notifier_.reset();
+-        return true;
+-      }
+-
+-      shared_mem_writer_ = true;
+-      return true;
+-    }
+-
+-    case Message::MessageType::UPGRADE_REJECT: {
+-      // We can free our resources.
+-      shared_mem_writer_ = false;
+-      write_buffer_.reset();
+-      write_notifier_.reset();
+-
+-      return true;
+-    }
+-    default:
+-      break;
+-  }
+-
+-  return ChannelPosix::OnControlMessage(message_type, payload, payload_size,
+-                                        std::move(handles));
+-}
+-
+-void ChannelLinux::SharedMemReadReady() {
+-  CHECK(read_buffer_);
+-  if (read_buffer_->TryLockForReading()) {
+-    read_notifier_->Clear();
+-    do {
+-      uint32_t bytes_read = 0;
+-      SharedBuffer::Error read_res = read_buffer_->TryReadLocked(
+-          read_buf_.data(), read_buf_.size(), &bytes_read);
+-      if (read_res == SharedBuffer::Error::kControlCorruption) {
+-        // This is an error we cannot recover from.
+-        OnError(Error::kReceivedMalformedData);
+-        read_buffer_->UnlockForReading();
+-        break;
+-      }
+-
+-      if (bytes_read == 0) {
+-        break;
+-      }
+-
+-      UMA_HISTOGRAM_COUNTS_100000("Mojo.Channel.Linux.SharedMemReadBytes",
+-                                  bytes_read);
+-
+-      // Now dispatch the message, we KNOW it's at least one full message
+-      // because we checked the message size before putting it into the
+-      // shared buffer, this mechanism can never write a partial message.
+-      off_t data_offset = 0;
+-      while (bytes_read - data_offset > 0) {
+-        size_t read_size_hint;
+-        DispatchResult result = TryDispatchMessage(
+-            base::make_span(
+-                reinterpret_cast<char*>(read_buf_.data() + data_offset),
+-                bytes_read - data_offset),
+-            &read_size_hint);
+-
+-        // We cannot have a message parse failure, we KNOW that we wrote a
+-        // full message if we get one something has gone horribly wrong.
+-        if (result != DispatchResult::kOK) {
+-          LOG(ERROR) << "Recevied a bad message via shared memory";
+-          OnError(Error::kReceivedMalformedData);
+-          break;
+-        }
+-
+-        // The next message will start after read_size_hint bytes the writer
+-        // guarantees that we wrote a full message and we've guaranteed that the
+-        // message was dispatched correctly so we know where the next message
+-        // starts.
+-        data_offset += read_size_hint;
+-      }
+-    } while (true);
+-    read_buffer_->UnlockForReading();
+-  }
+-}
+-
+-void ChannelLinux::OnWriteError(Error error) {
+-  reject_writes_ = true;
+-  ChannelPosix::OnWriteError(error);
+-}
+-
+-void ChannelLinux::ShutDownOnIOThread() {
+-  reject_writes_ = true;
+-  read_notifier_.reset();
+-  write_notifier_.reset();
+-
+-  ChannelPosix::ShutDownOnIOThread();
+-}
+-
+-void ChannelLinux::StartOnIOThread() {
+-  ChannelPosix::StartOnIOThread();
+-}
+-
+-void ChannelLinux::OfferSharedMemUpgradeInternal() {
+-  if (reject_writes_) {
+-    return;
+-  }
+-
+-  if (write_buffer_ || write_notifier_) {
+-    LOG(ERROR) << "Upgrade attempted on an already upgraded channel";
+-    return;
+-  }
+-
+-  const size_t kSize = num_pages_ * base::GetPageSize();
+-  base::ScopedFD memfd = CreateSealedMemFD(kSize);
+-  if (!memfd.is_valid()) {
+-    PLOG(ERROR) << "Unable to create memfd";
+-    return;
+-  }
+-
+-  bool properly_sealed = ValidateFDIsProperlySealedMemFD(memfd);
+-  if (!properly_sealed) {
+-    // We will not attempt an offer, something has gone wrong.
+-    LOG(ERROR) << "FD was not properly sealed we cannot offer upgrade.";
+-    return;
+-  }
+-
+-  std::unique_ptr<SharedBuffer> write_buffer =
+-      SharedBuffer::Create(memfd, kSize);
+-  if (!write_buffer || !write_buffer->is_valid()) {
+-    PLOG(ERROR) << "Unable to map shared memory";
+-    return;
+-  }
+-
+-  write_buffer->Initialize();
+-
+-  std::unique_ptr<EventFDNotifier> write_notifier =
+-      EventFDNotifier::CreateWriteNotifier();
+-  if (!write_notifier) {
+-    PLOG(ERROR) << "Failed to create eventfd write notifier";
+-    return;
+-  }
+-
+-  std::vector<PlatformHandle> fds;
+-  fds.emplace_back(std::move(memfd));
+-  fds.emplace_back(write_notifier->take_dup());
+-
+-  write_notifier_ = std::move(write_notifier);
+-  write_buffer_ = std::move(write_buffer);
+-
+-  UpgradeOfferMessage offer_msg;
+-  offer_msg.num_pages = num_pages_;
+-  MessagePtr msg(new Channel::Message(sizeof(UpgradeOfferMessage),
+-                                      /*num handles=*/fds.size(),
+-                                      Message::MessageType::UPGRADE_OFFER));
+-  msg->SetHandles(std::move(fds));
+-  memcpy(msg->mutable_payload(), &offer_msg, sizeof(offer_msg));
+-
+-  ChannelPosix::Write(std::move(msg));
+-}
+-
+-// static
+-bool ChannelLinux::KernelSupportsUpgradeRequirements() {
+-  static bool supported = []() -> bool {
+-    // Do we have memfd_create support, we check by seeing if we get an -ENOSYS
+-    // or an -EINVAL. We also support -EPERM because of seccomp rules this is
+-    // another possible outcome.
+-    int ret = syscall(__NR_memfd_create, "", ~0);
+-    PCHECK(ret < 0 && (errno == EINVAL || errno == ENOSYS || errno == EPERM));
+-    bool memfd_supported = (ret < 0 && errno == EINVAL);
+-    return memfd_supported && EventFDNotifier::KernelSupported();
+-  }();
+-  return supported;
+-}
+-
+-// static
+-bool ChannelLinux::UpgradesEnabled() {
+-  if (!g_params_set.load())
+-    return g_use_shared_mem.load();
+-
+-  return base::FeatureList::IsEnabled(kMojoLinuxChannelSharedMem);
+-}
+-
+-// static
+-void ChannelLinux::SetSharedMemParameters(bool enabled, uint32_t num_pages) {
+-  g_params_set.store(true);
+-  g_use_shared_mem.store(enabled);
+-  g_shared_mem_pages.store(num_pages);
+-}
+-
+-}  // namespace core
+-}  // namespace mojo
+diff --git a/mojo/core/channel_linux.h b/mojo/core/channel_linux.h
+deleted file mode 100644
+index 9793804a3bac9f37e8702e8ef3411c0ac6c55d05..0000000000000000000000000000000000000000
+--- a/mojo/core/channel_linux.h
++++ /dev/null
+@@ -1,95 +0,0 @@
+-// Copyright 2020 The Chromium Authors. All rights reserved.
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-#ifndef MOJO_CORE_CHANNEL_LINUX_H_
+-#define MOJO_CORE_CHANNEL_LINUX_H_
+-
+-#include <atomic>
+-#include <memory>
+-
+-#include "base/macros.h"
+-#include "build/build_config.h"
+-#include "mojo/core/channel_posix.h"
+-
+-namespace mojo {
+-namespace core {
+-
+-class DataAvailableNotifier;
+-
+-// ChannelLinux is a specialization of ChannelPosix which has support for shared
+-// memory via Mojo channel upgrades. By default on Linux, CrOS, and Android
+-// every channel will be of type ChannelLinux which can be upgraded at runtime
+-// to take advantage of shared memory when all required kernel features are
+-// present.
+-class MOJO_SYSTEM_IMPL_EXPORT ChannelLinux : public ChannelPosix {
+- public:
+-  ChannelLinux(Delegate* delegate,
+-               ConnectionParams connection_params,
+-               HandlePolicy handle_policy,
+-               scoped_refptr<base::SingleThreadTaskRunner> io_task_runner);
+-
+-  ChannelLinux(const ChannelLinux&) = delete;
+-  ChannelLinux& operator=(const ChannelLinux&) = delete;
+-
+-  // KernelSupportsUpgradeRequirements will return true if the kernel supports
+-  // the features necessary to use an upgrade channel. How the channel will be
+-  // upgraded is an implementation detail and this just tells the caller that
+-  // calling Channel::UpgradeChannel() will have some effect.
+-  static bool KernelSupportsUpgradeRequirements();
+-
+-  // Will return true if at least one feature that is available via upgrade is
+-  // enabled.
+-  static bool UpgradesEnabled();
+-
+-  // SetSharedMemParams will control whether shared memory is used for this
+-  // channel.
+-  static void SetSharedMemParameters(bool enabled, uint32_t num_pages);
+-
+-  // ChannelPosix impl:
+-  void Write(MessagePtr message) override;
+-  void OfferSharedMemUpgrade();
+-  bool OnControlMessage(Message::MessageType message_type,
+-                        const void* payload,
+-                        size_t payload_size,
+-                        std::vector<PlatformHandle> handles) override;
+-  void OnWriteError(Error error) override;
+-
+-  void StartOnIOThread() override;
+-  void ShutDownOnIOThread() override;
+-
+- private:
+-  ~ChannelLinux() override;
+-
+-  class SharedBuffer;
+-
+-  void OfferSharedMemUpgradeInternal();
+-  void SharedMemReadReady();
+-
+-  // We only offer once, we use an atomic flag to guarantee no races to offer.
+-  std::atomic_flag offered_{false};
+-
+-  // This flag keeps track of whether or not we've established a shared memory
+-  // channel with the remote. If false we always fall back to the PosixChannel
+-  // (socket).
+-  bool shared_mem_writer_ = false;
+-
+-  std::unique_ptr<DataAvailableNotifier> write_notifier_;
+-  std::unique_ptr<SharedBuffer> write_buffer_;
+-
+-  std::unique_ptr<DataAvailableNotifier> read_notifier_;
+-  std::unique_ptr<SharedBuffer> read_buffer_;
+-
+-  uint32_t num_pages_ = 0;
+-
+-  bool reject_writes_ = false;
+-
+-  // This is a temporary buffer we use to remove messages from the shared buffer
+-  // for validation and dispatching.
+-  std::vector<uint8_t> read_buf_;
+-};
+-
+-}  // namespace core
+-}  // namespace mojo
+-
+-#endif
+diff --git a/mojo/core/channel_posix.cc b/mojo/core/channel_posix.cc
+index 5dd7359802d9f2700c8130d4ea9c4c250dfc08d6..2335e8d24fdfacd17f8f575abd0246b6a5410eaf 100644
+--- a/mojo/core/channel_posix.cc
++++ b/mojo/core/channel_posix.cc
+@@ -31,20 +31,15 @@
+ #if !defined(OS_NACL)
+ #include <limits.h>
+ #include <sys/uio.h>
+-
+-#if (defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID))
+-#include "mojo/core/channel_linux.h"
+ #endif
+ 
+-#endif  // !defined(OS_NACL)
+-
+ namespace mojo {
+ namespace core {
+ 
+ namespace {
+ #if !defined(OS_NACL)
+ std::atomic<bool> g_use_writev{false};
+-#endif  // !defined(OS_NACL)
++#endif
+ 
+ const size_t kMaxBatchReadCapacity = 256 * 1024;
+ }  // namespace
+@@ -261,11 +256,11 @@ void ChannelPosix::ShutDownOnIOThread() {
+     ignore_result(server_.TakePlatformHandle());
+   }
+ #if defined(OS_IOS)
+-  fds_to_close_.clear();
++    fds_to_close_.clear();
+ #endif
+ 
+-  // May destroy the |this| if it was the last reference.
+-  self_ = nullptr;
++    // May destroy the |this| if it was the last reference.
++    self_ = nullptr;
+ }
+ 
+ void ChannelPosix::WillDestroyCurrentMessageLoop() {
+@@ -278,67 +273,68 @@ void ChannelPosix::OnFileCanReadWithoutBlocking(int fd) {
+   if (server_.is_valid()) {
+     CHECK_EQ(fd, server_.platform_handle().GetFD().get());
+ #if !defined(OS_NACL)
+-    read_watcher_.reset();
+-    base::CurrentThread::Get()->RemoveDestructionObserver(this);
+-
+-    AcceptSocketConnection(server_.platform_handle().GetFD().get(), &socket_);
+-    ignore_result(server_.TakePlatformHandle());
+-    if (!socket_.is_valid()) {
+-      OnError(Error::kConnectionFailed);
+-      return;
+-    }
+-    StartOnIOThread();
++      read_watcher_.reset();
++      base::CurrentThread::Get()->RemoveDestructionObserver(this);
++
++      AcceptSocketConnection(server_.platform_handle().GetFD().get(), &socket_);
++      ignore_result(server_.TakePlatformHandle());
++      if (!socket_.is_valid()) {
++        OnError(Error::kConnectionFailed);
++        return;
++      }
++      StartOnIOThread();
+ #else
+-    NOTREACHED();
++      NOTREACHED();
+ #endif
+-    return;
++      return;
+   }
+-  CHECK_EQ(fd, socket_.get());
+-
+-  bool validation_error = false;
+-  bool read_error = false;
+-  size_t next_read_size = 0;
+-  size_t buffer_capacity = 0;
+-  size_t total_bytes_read = 0;
+-  size_t bytes_read = 0;
+-  do {
+-    buffer_capacity = next_read_size;
+-    char* buffer = GetReadBuffer(&buffer_capacity);
+-    DCHECK_GT(buffer_capacity, 0u);
+-
+-    std::vector<base::ScopedFD> incoming_fds;
+-    ssize_t read_result =
+-        SocketRecvmsg(socket_.get(), buffer, buffer_capacity, &incoming_fds);
+-    for (auto& incoming_fd : incoming_fds)
+-      incoming_fds_.emplace_back(std::move(incoming_fd));
+-
+-    if (read_result > 0) {
+-      bytes_read = static_cast<size_t>(read_result);
+-      total_bytes_read += bytes_read;
+-      if (!OnReadComplete(bytes_read, &next_read_size)) {
++    CHECK_EQ(fd, socket_.get());
++
++    bool validation_error = false;
++    bool read_error = false;
++    size_t next_read_size = 0;
++    size_t buffer_capacity = 0;
++    size_t total_bytes_read = 0;
++    size_t bytes_read = 0;
++    do {
++      buffer_capacity = next_read_size;
++      char* buffer = GetReadBuffer(&buffer_capacity);
++      DCHECK_GT(buffer_capacity, 0u);
++
++      std::vector<base::ScopedFD> incoming_fds;
++      ssize_t read_result =
++          SocketRecvmsg(socket_.get(), buffer, buffer_capacity, &incoming_fds);
++      for (auto& incoming_fd : incoming_fds)
++        incoming_fds_.emplace_back(std::move(incoming_fd));
++
++      if (read_result > 0) {
++        bytes_read = static_cast<size_t>(read_result);
++        total_bytes_read += bytes_read;
++        if (!OnReadComplete(bytes_read, &next_read_size)) {
++          read_error = true;
++          validation_error = true;
++          break;
++        }
++      } else if (read_result == 0 ||
++                 (errno != EAGAIN && errno != EWOULDBLOCK)) {
+         read_error = true;
+-        validation_error = true;
+         break;
++      } else {
++        // We expect more data but there is none to read. The
++        // FileDescriptorWatcher will wake us up again once there is.
++        DCHECK(errno == EAGAIN || errno == EWOULDBLOCK);
++        return;
+       }
+-    } else if (read_result == 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) {
+-      read_error = true;
+-      break;
+-    } else {
+-      // We expect more data but there is none to read. The
+-      // FileDescriptorWatcher will wake us up again once there is.
+-      DCHECK(errno == EAGAIN || errno == EWOULDBLOCK);
+-      return;
++    } while (bytes_read == buffer_capacity &&
++             total_bytes_read < kMaxBatchReadCapacity && next_read_size > 0);
++    if (read_error) {
++      // Stop receiving read notifications.
++      read_watcher_.reset();
++      if (validation_error)
++        OnError(Error::kReceivedMalformedData);
++      else
++        OnError(Error::kDisconnected);
+     }
+-  } while (bytes_read == buffer_capacity &&
+-           total_bytes_read < kMaxBatchReadCapacity && next_read_size > 0);
+-  if (read_error) {
+-    // Stop receiving read notifications.
+-    read_watcher_.reset();
+-    if (validation_error)
+-      OnError(Error::kReceivedMalformedData);
+-    else
+-      OnError(Error::kDisconnected);
+-  }
+ }
+ 
+ void ChannelPosix::OnFileCanWriteWithoutBlocking(int fd) {
+@@ -381,29 +377,29 @@ bool ChannelPosix::WriteNoLock(MessageView message_view) {
+       result = SendmsgWithHandles(socket_.get(), &iov, 1, fds);
+       if (result >= 0) {
+ #if defined(OS_IOS)
+-        // There is a bug in XNU which makes it dangerous to close
+-        // a file descriptor while it is in transit. So instead we
+-        // store the file descriptor in a set and send a message to
+-        // the recipient, which is queued AFTER the message that
+-        // sent the FD. The recipient will reply to the message,
+-        // letting us know that it is now safe to close the file
+-        // descriptor. For more information, see:
+-        // http://crbug.com/298276
+-        MessagePtr fds_message(new Channel::Message(
+-            sizeof(int) * fds.size(), 0, Message::MessageType::HANDLES_SENT));
+-        int* fd_data = reinterpret_cast<int*>(fds_message->mutable_payload());
+-        for (size_t i = 0; i < fds.size(); ++i)
+-          fd_data[i] = fds[i].get();
+-        outgoing_messages_.emplace_back(std::move(fds_message), 0);
+-        {
+-          base::AutoLock l(fds_to_close_lock_);
+-          for (auto& fd : fds)
+-            fds_to_close_.emplace_back(std::move(fd));
+-        }
++          // There is a bug in XNU which makes it dangerous to close
++          // a file descriptor while it is in transit. So instead we
++          // store the file descriptor in a set and send a message to
++          // the recipient, which is queued AFTER the message that
++          // sent the FD. The recipient will reply to the message,
++          // letting us know that it is now safe to close the file
++          // descriptor. For more information, see:
++          // http://crbug.com/298276
++          MessagePtr fds_message(new Channel::Message(
++              sizeof(int) * fds.size(), 0, Message::MessageType::HANDLES_SENT));
++          int* fd_data = reinterpret_cast<int*>(fds_message->mutable_payload());
++          for (size_t i = 0; i < fds.size(); ++i)
++            fd_data[i] = fds[i].get();
++          outgoing_messages_.emplace_back(std::move(fds_message), 0);
++          {
++            base::AutoLock l(fds_to_close_lock_);
++            for (auto& fd : fds)
++              fds_to_close_.emplace_back(std::move(fd));
++          }
+ #endif  // defined(OS_IOS)
+-        handles_written += num_handles_to_send;
+-        DCHECK_LE(handles_written, num_handles);
+-        message_view.set_num_handles_sent(handles_written);
++          handles_written += num_handles_to_send;
++          DCHECK_LE(handles_written, num_handles);
++          message_view.set_num_handles_sent(handles_written);
+       } else {
+         // Message transmission failed, so pull the FDs back into |handles|
+         // so they can be held by the Message again.
+@@ -417,86 +413,76 @@ bool ChannelPosix::WriteNoLock(MessageView message_view) {
+                            message_view.data_num_bytes());
+     }
+ 
+-    if (result < 0) {
+-      if (errno != EAGAIN &&
+-          errno != EWOULDBLOCK
++      if (result < 0) {
++        if (errno != EAGAIN &&
++            errno != EWOULDBLOCK
+ #if defined(OS_IOS)
+-          // On iOS if sendmsg() is trying to send fds between processes and
+-          // there isn't enough room in the output buffer to send the fd
+-          // structure over atomically then EMSGSIZE is returned.
+-          //
+-          // EMSGSIZE presents a problem since the system APIs can only call
+-          // us when there's room in the socket buffer and not when there is
+-          // "enough" room.
+-          //
+-          // The current behavior is to return to the event loop when EMSGSIZE
+-          // is received and hopefully service another FD.  This is however
+-          // still technically a busy wait since the event loop will call us
+-          // right back until the receiver has read enough data to allow
+-          // passing the FD over atomically.
+-          && errno != EMSGSIZE
++            // On iOS if sendmsg() is trying to send fds between processes and
++            // there isn't enough room in the output buffer to send the fd
++            // structure over atomically then EMSGSIZE is returned.
++            //
++            // EMSGSIZE presents a problem since the system APIs can only call
++            // us when there's room in the socket buffer and not when there is
++            // "enough" room.
++            //
++            // The current behavior is to return to the event loop when EMSGSIZE
++            // is received and hopefull service another FD.  This is however
++            // still technically a busy wait since the event loop will call us
++            // right back until the receiver has read enough data to allow
++            // passing the FD over atomically.
++            && errno != EMSGSIZE
+ #endif
+-      ) {
+-        return false;
++        ) {
++          return false;
++        }
++        message_view.SetHandles(std::move(handles));
++        outgoing_messages_.emplace_front(std::move(message_view));
++        WaitForWriteOnIOThreadNoLock();
++        return true;
+       }
+-      message_view.SetHandles(std::move(handles));
+-      outgoing_messages_.emplace_front(std::move(message_view));
+-      WaitForWriteOnIOThreadNoLock();
+-      return true;
+-    }
+ 
+-    bytes_written = static_cast<size_t>(result);
++      bytes_written = static_cast<size_t>(result);
+   } while (handles_written < num_handles ||
+            bytes_written < message_view.data_num_bytes());
+ 
+-  return FlushOutgoingMessagesNoLock();
++    return FlushOutgoingMessagesNoLock();
+ }
+ 
+ bool ChannelPosix::FlushOutgoingMessagesNoLock() {
+ #if !defined(OS_NACL)
+-  if (g_use_writev)
+-    return FlushOutgoingMessagesWritevNoLock();
++    if (g_use_writev)
++      return FlushOutgoingMessagesWritevNoLock();
+ #endif
+ 
+-  base::circular_deque<MessageView> messages;
+-  std::swap(outgoing_messages_, messages);
++    base::circular_deque<MessageView> messages;
++    std::swap(outgoing_messages_, messages);
+ 
+-  if (!messages.empty()) {
+-    UMA_HISTOGRAM_COUNTS_1000("Mojo.Channel.WriteQueuePendingMessages",
+-                              messages.size());
+-  }
++    if (!messages.empty()) {
++      UMA_HISTOGRAM_COUNTS_1000("Mojo.Channel.WriteQueuePendingMessages",
++                                messages.size());
++    }
+ 
+-  while (!messages.empty()) {
+-    if (!WriteNoLock(std::move(messages.front())))
+-      return false;
++    while (!messages.empty()) {
++      if (!WriteNoLock(std::move(messages.front())))
++        return false;
+ 
+-    messages.pop_front();
+-    if (!outgoing_messages_.empty()) {
+-      // The message was requeued by WriteNoLock(), so we have to wait for
+-      // pipe to become writable again. Repopulate the message queue and exit.
+-      // If sending the message triggered any control messages, they may be
+-      // in |outgoing_messages_| in addition to or instead of the message
+-      // being sent.
+-      std::swap(messages, outgoing_messages_);
+-      while (!messages.empty()) {
+-        outgoing_messages_.push_front(std::move(messages.back()));
+-        messages.pop_back();
++      messages.pop_front();
++      if (!outgoing_messages_.empty()) {
++        // The message was requeued by WriteNoLock(), so we have to wait for
++        // pipe to become writable again. Repopulate the message queue and exit.
++        // If sending the message triggered any control messages, they may be
++        // in |outgoing_messages_| in addition to or instead of the message
++        // being sent.
++        std::swap(messages, outgoing_messages_);
++        while (!messages.empty()) {
++          outgoing_messages_.push_front(std::move(messages.back()));
++          messages.pop_back();
++        }
++        return true;
+       }
+-      return true;
+     }
+-  }
+-
+-  return true;
+-}
+ 
+-void ChannelPosix::RejectUpgradeOffer() {
+-  Write(std::make_unique<Channel::Message>(
+-      0, 0, Message::MessageType::UPGRADE_REJECT));
+-}
+-
+-void ChannelPosix::AcceptUpgradeOffer() {
+-  Write(std::make_unique<Channel::Message>(
+-      0, 0, Message::MessageType::UPGRADE_ACCEPT));
++    return true;
+ }
+ 
+ void ChannelPosix::OnWriteError(Error error) {
+@@ -621,19 +607,12 @@ bool ChannelPosix::FlushOutgoingMessagesWritevNoLock() {
+ }
+ #endif  // !defined(OS_NACL)
+ 
++#if defined(OS_IOS)
+ bool ChannelPosix::OnControlMessage(Message::MessageType message_type,
+                                     const void* payload,
+                                     size_t payload_size,
+                                     std::vector<PlatformHandle> handles) {
+   switch (message_type) {
+-    case Message::MessageType::UPGRADE_OFFER: {
+-      // ChannelPosix itself does not support upgrades, if the message was
+-      // delivered here it could have been when this channel was created we
+-      // didn't support upgrades but another process does.
+-      RejectUpgradeOffer();
+-      return true;
+-    }
+-#if defined(OS_IOS)
+     case Message::MessageType::HANDLES_SENT: {
+       if (payload_size == 0)
+         break;
+@@ -654,7 +633,7 @@ bool ChannelPosix::OnControlMessage(Message::MessageType message_type,
+         break;
+       return true;
+     }
+-#endif
++
+     default:
+       break;
+   }
+@@ -662,7 +641,6 @@ bool ChannelPosix::OnControlMessage(Message::MessageType message_type,
+   return false;
+ }
+ 
+-#if defined(OS_IOS)
+ // Closes handles referenced by |fds|. Returns false if |num_fds| is 0, or if
+ // |fds| does not match a sequence of handles in |fds_to_close_|.
+ bool ChannelPosix::CloseHandles(const int* fds, size_t num_fds) {
+@@ -697,12 +675,12 @@ bool ChannelPosix::CloseHandles(const int* fds, size_t num_fds) {
+ }
+ #endif  // defined(OS_IOS)
+ 
+-#if !defined(OS_NACL)
+ // static
++#if !defined(OS_NACL)
+ void Channel::set_posix_use_writev(bool use_writev) {
+   g_use_writev = use_writev;
+ }
+-#endif  // !defined(OS_NACL)
++#endif
+ 
+ // static
+ scoped_refptr<Channel> Channel::Create(
+@@ -710,33 +688,9 @@ scoped_refptr<Channel> Channel::Create(
+     ConnectionParams connection_params,
+     HandlePolicy handle_policy,
+     scoped_refptr<base::SingleThreadTaskRunner> io_task_runner) {
+-#if !defined(OS_NACL)
+-#if (defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID))
+-  return new ChannelLinux(delegate, std::move(connection_params), handle_policy,
+-                          io_task_runner);
+-#endif
+-#endif
+-
+   return new ChannelPosix(delegate, std::move(connection_params), handle_policy,
+                           io_task_runner);
+ }
+ 
+-#if !defined(OS_NACL)
+-#if (defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID))
+-// static
+-bool Channel::SupportsChannelUpgrade() {
+-  return ChannelLinux::KernelSupportsUpgradeRequirements() &&
+-         ChannelLinux::UpgradesEnabled();
+-}
+-
+-void Channel::OfferChannelUpgrade() {
+-  if (!SupportsChannelUpgrade()) {
+-    return;
+-  }
+-  static_cast<ChannelLinux*>(this)->OfferSharedMemUpgrade();
+-}
+-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-#endif  // !defined(OS_NACL)
+-
+ }  // namespace core
+ }  // namespace mojo
+diff --git a/mojo/core/channel_posix.h b/mojo/core/channel_posix.h
+index e64e64cc57ddd53131bfb0cf94ccbaeffa7ddcc3..33a33aad5f13363ba02c937ae6229a9a97fceb54 100644
+--- a/mojo/core/channel_posix.h
++++ b/mojo/core/channel_posix.h
+@@ -43,28 +43,14 @@ class ChannelPosix : public Channel,
+                               size_t extra_header_size,
+                               std::vector<PlatformHandle>* handles,
+                               bool* deferred) override;
+-  bool OnControlMessage(Message::MessageType message_type,
+-                        const void* payload,
+-                        size_t payload_size,
+-                        std::vector<PlatformHandle> handles) override;
+ 
+- protected:
++ private:
+   ~ChannelPosix() override;
+-  virtual void StartOnIOThread();
+-  virtual void ShutDownOnIOThread();
+-  virtual void OnWriteError(Error error);
+-
+-  void RejectUpgradeOffer();
+-  void AcceptUpgradeOffer();
+-
+-  // Keeps the Channel alive at least until explicit shutdown on the IO thread.
+-  scoped_refptr<Channel> self_;
+-
+-  scoped_refptr<base::SingleThreadTaskRunner> io_task_runner_;
+ 
+- private:
++  void StartOnIOThread();
+   void WaitForWriteOnIOThread();
+   void WaitForWriteOnIOThreadNoLock();
++  void ShutDownOnIOThread();
+ 
+   // base::CurrentThread::DestructionObserver:
+   void WillDestroyCurrentMessageLoop() override;
+@@ -92,9 +78,18 @@ class ChannelPosix : public Channel,
+ #endif  // !defined(OS_NACL)
+ 
+ #if defined(OS_IOS)
++  bool OnControlMessage(Message::MessageType message_type,
++                        const void* payload,
++                        size_t payload_size,
++                        std::vector<PlatformHandle> handles) override;
+   bool CloseHandles(const int* fds, size_t num_fds);
+ #endif  // defined(OS_IOS)
+ 
++  void OnWriteError(Error error);
++
++  // Keeps the Channel alive at least until explicit shutdown on the IO thread.
++  scoped_refptr<Channel> self_;
++
+   // We may be initialized with a server socket, in which case this will be
+   // valid until it accepts an incoming connection.
+   PlatformChannelServerEndpoint server_;
+@@ -103,6 +98,8 @@ class ChannelPosix : public Channel,
+   // or accepted over |server_|.
+   base::ScopedFD socket_;
+ 
++  scoped_refptr<base::SingleThreadTaskRunner> io_task_runner_;
++
+   // These watchers must only be accessed on the IO thread.
+   std::unique_ptr<base::MessagePumpForIO::FdWatchController> read_watcher_;
+   std::unique_ptr<base::MessagePumpForIO::FdWatchController> write_watcher_;
+diff --git a/mojo/core/embedder/BUILD.gn b/mojo/core/embedder/BUILD.gn
+index 5949584804bb8b41f31c652989a3e9ea0f55ef53..a2b87728d251e84cc60b40a26ebf21e8a5671e32 100644
+--- a/mojo/core/embedder/BUILD.gn
++++ b/mojo/core/embedder/BUILD.gn
+@@ -21,19 +21,7 @@ component("embedder") {
+   public_deps = [ "//base" ]
+ 
+   deps = [
+-    ":features",
+     "//mojo/core:embedder_internal",
+     "//mojo/public/c/system",
+   ]
+ }
+-
+-component("features") {
+-  output_name = "mojo_core_embedder_features"
+-
+-  defines = [ "IS_MOJO_CORE_EMBEDDER_FEATURES_IMPL" ]
+-
+-  public = [ "features.h" ]
+-  sources = [ "features.cc" ]
+-
+-  public_deps = [ "//base" ]
+-}
+diff --git a/mojo/core/embedder/configuration.h b/mojo/core/embedder/configuration.h
+index 41e50ca4ad5ae6c77c1cc4e4774a06036cd86c4d..f4621dcd17405d2e9252cc79a52b50b9f5c2e536 100644
+--- a/mojo/core/embedder/configuration.h
++++ b/mojo/core/embedder/configuration.h
+@@ -39,9 +39,6 @@ struct Configuration {
+ 
+   // Maximum size of a single shared memory segment, in bytes.
+   size_t max_shared_memory_num_bytes = 1024 * 1024 * 1024;
+-
+-  // If true we will not advertise our capabilities to our peer.
+-  bool dont_advertise_capabilities = false;
+ };
+ 
+ }  // namespace core
+diff --git a/mojo/core/embedder/embedder.cc b/mojo/core/embedder/embedder.cc
+index 30189c494a20f1d934da90fffa8a37b2fe1d0c3f..29b6d058e91bcef60b0416ce417d2333d57f0bbf 100644
+--- a/mojo/core/embedder/embedder.cc
++++ b/mojo/core/embedder/embedder.cc
+@@ -15,40 +15,26 @@
+ #include "mojo/core/channel.h"
+ #include "mojo/core/configuration.h"
+ #include "mojo/core/core.h"
+-#include "mojo/core/embedder/features.h"
+ #include "mojo/core/entrypoints.h"
+ #include "mojo/core/node_controller.h"
+ #include "mojo/public/c/system/thunks.h"
+ 
+-#if !defined(OS_NACL)
+-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-#include "mojo/core/channel_linux.h"
+-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-#endif  // !defined(OS_NACL)
+-
+ namespace mojo {
+ namespace core {
+ 
++namespace {
++#if defined(OS_POSIX) && !defined(OS_NACL) && !defined(OS_MAC)
++const base::Feature kMojoPosixUseWritev{"MojoPosixUseWritev",
++                                        base::FEATURE_DISABLED_BY_DEFAULT};
++#endif
++}  // namespace
++
+ // InitFeatures will be called as soon as the base::FeatureList is initialized.
+ void InitFeatures() {
+ #if defined(OS_POSIX) && !defined(OS_NACL) && !defined(OS_MAC)
+   Channel::set_posix_use_writev(
+       base::FeatureList::IsEnabled(kMojoPosixUseWritev));
+-
+-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-  bool shared_mem_enabled =
+-      base::FeatureList::IsEnabled(kMojoLinuxChannelSharedMem);
+-  int num_pages = kMojoLinuxChannelSharedMemPages.Get();
+-  if (num_pages < 0) {
+-    num_pages = 4;
+-  } else if (num_pages > 128) {
+-    num_pages = 128;
+-  }
+-
+-  ChannelLinux::SetSharedMemParameters(shared_mem_enabled,
+-                                       static_cast<unsigned int>(num_pages));
+-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-#endif  // defined(OS_POSIX) && !defined(OS_NACL) && !defined(OS_MAC)
++#endif
+ }
+ 
+ void Init(const Configuration& configuration) {
+diff --git a/mojo/core/embedder/features.cc b/mojo/core/embedder/features.cc
+deleted file mode 100644
+index ed3f4f2c3035a773026fcdbeb7296806679b77b7..0000000000000000000000000000000000000000
+--- a/mojo/core/embedder/features.cc
++++ /dev/null
+@@ -1,26 +0,0 @@
+-// Copyright 2021 The Chromium Authors. All rights reserved.
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-#include "mojo/core/embedder/features.h"
+-
+-namespace mojo {
+-namespace core {
+-
+-#if defined(OS_POSIX) && !defined(OS_NACL) && !defined(OS_MAC)
+-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-COMPONENT_EXPORT(MOJO_CORE_EMBEDDER_FEATURES)
+-const base::Feature kMojoLinuxChannelSharedMem{
+-    "MojoLinuxChannelSharedMem", base::FEATURE_DISABLED_BY_DEFAULT};
+-COMPONENT_EXPORT(MOJO_CORE_EMBEDDER_FEATURES)
+-const base::FeatureParam<int> kMojoLinuxChannelSharedMemPages{
+-    &kMojoLinuxChannelSharedMem, "MojoLinuxChannelSharedMemPages", 4};
+-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-
+-COMPONENT_EXPORT(MOJO_CORE_EMBEDDER_FEATURES)
+-const base::Feature kMojoPosixUseWritev{"MojoPosixUseWritev",
+-                                        base::FEATURE_DISABLED_BY_DEFAULT};
+-#endif  // defined(OS_POSIX) && !defined(OS_NACL) && !defined(OS_MAC)
+-
+-}  // namespace core
+-}  // namespace mojo
+diff --git a/mojo/core/embedder/features.h b/mojo/core/embedder/features.h
+deleted file mode 100644
+index 512533537b77c2c4642d8666a70638507630b2c5..0000000000000000000000000000000000000000
+--- a/mojo/core/embedder/features.h
++++ /dev/null
+@@ -1,27 +0,0 @@
+-// Copyright 2021 The Chromium Authors. All rights reserved.
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-#ifndef MOJO_CORE_EMBEDDER_FEATURES_H_
+-#define MOJO_CORE_EMBEDDER_FEATURES_H_
+-
+-#include "base/component_export.h"
+-#include "base/feature_list.h"
+-#include "build/build_config.h"
+-
+-namespace mojo {
+-namespace core {
+-
+-#if defined(OS_POSIX) && !defined(OS_NACL) && !defined(OS_MAC)
+-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-extern const base::Feature kMojoLinuxChannelSharedMem;
+-extern const base::FeatureParam<int> kMojoLinuxChannelSharedMemPages;
+-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-
+-extern const base::Feature kMojoPosixUseWritev;
+-#endif  // defined(OS_POSIX) && !defined(OS_NACL) && !defined(OS_MAC)
+-
+-}  // namespace core
+-}  // namespace mojo
+-
+-#endif  // MOJO_CORE_EMBEDDER_FEATURES_H_
+diff --git a/mojo/core/multiprocess_message_pipe_unittest.cc b/mojo/core/multiprocess_message_pipe_unittest.cc
+index c4e74a2197f48f5b8b97dda4ae7e6fce6f1997fd..26e2c80b0d21aab4d513d5459ec6ab3e252a6ef8 100644
+--- a/mojo/core/multiprocess_message_pipe_unittest.cc
++++ b/mojo/core/multiprocess_message_pipe_unittest.cc
+@@ -1371,7 +1371,6 @@ INSTANTIATE_TEST_SUITE_P(
+     All,
+     MultiprocessMessagePipeTestWithPeerSupport,
+     testing::Values(test::MojoTestBase::LaunchType::CHILD,
+-                    test::MojoTestBase::LaunchType::CHILD_WITHOUT_CAPABILITIES,
+                     test::MojoTestBase::LaunchType::PEER,
+                     test::MojoTestBase::LaunchType::ASYNC
+ #if !defined(OS_FUCHSIA)
+diff --git a/mojo/core/node_channel.cc b/mojo/core/node_channel.cc
+index 7b52f70d7e46cea5943ca365693d5791b6a319cf..71a9189f77d742e33692d8cc6b5a1b83ea94511a 100644
+--- a/mojo/core/node_channel.cc
++++ b/mojo/core/node_channel.cc
+@@ -59,22 +59,14 @@ struct alignas(8) AcceptInviteeDataV0 {
+   ports::NodeName token;
+ };
+ 
+-struct alignas(8) AcceptInviteeDataV1 : AcceptInviteeDataV0 {
+-  uint64_t capabilities = kNodeCapabilityNone;
+-};
+-
+-using AcceptInviteeData = AcceptInviteeDataV1;
++using AcceptInviteeData = AcceptInviteeDataV0;
+ 
+ struct alignas(8) AcceptInvitationDataV0 {
+   ports::NodeName token;
+   ports::NodeName invitee_name;
+ };
+ 
+-struct alignas(8) AcceptInvitationDataV1 : AcceptInvitationDataV0 {
+-  uint64_t capabilities = kNodeCapabilityNone;
+-};
+-
+-using AcceptInvitationData = AcceptInvitationDataV1;
++using AcceptInvitationData = AcceptInvitationDataV0;
+ 
+ struct alignas(8) AcceptPeerDataV0 {
+   ports::NodeName token;
+@@ -114,12 +106,7 @@ struct alignas(8) AcceptBrokerClientDataV0 {
+   ports::NodeName broker_name;
+ };
+ 
+-struct alignas(8) AcceptBrokerClientDataV1 : AcceptBrokerClientDataV0 {
+-  uint64_t capabilities = kNodeCapabilityNone;
+-  uint64_t broker_capabilities = kNodeCapabilityNone;
+-};
+-
+-using AcceptBrokerClientData = AcceptBrokerClientDataV1;
++using AcceptBrokerClientData = AcceptBrokerClientDataV0;
+ 
+ // This is followed by arbitrary payload data which is interpreted as a token
+ // string for port location.
+@@ -130,19 +117,15 @@ struct alignas(8) RequestPortMergeData {
+ 
+ // Used for both REQUEST_INTRODUCTION and INTRODUCE.
+ //
+-// For INTRODUCE the message also includes a valid platform handle for a
+-// channel the receiver may use to communicate with the named node directly,
+-// or an invalid platform handle if the node is unknown to the sender or
+-// otherwise cannot be introduced.
++// For INTRODUCE the message also includes a valid platform handle for a channel
++// the receiver may use to communicate with the named node directly, or an
++// invalid platform handle if the node is unknown to the sender or otherwise
++// cannot be introduced.
+ struct alignas(8) IntroductionDataV0 {
+   ports::NodeName name;
+ };
+ 
+-struct alignas(8) IntroductionDataV1 : IntroductionDataV0 {
+-  uint64_t capabilities = kNodeCapabilityNone;
+-};
+-
+-using IntroductionData = IntroductionDataV1;
++using IntroductionData = IntroductionDataV0;
+ 
+ // This message is just a PlatformHandle. The data struct alignas(8) here has
+ // only a padding field to ensure an aligned, non-zero-length payload.
+@@ -158,8 +141,7 @@ struct alignas(8) RelayEventMessageData {
+   ports::NodeName destination;
+ };
+ 
+-// This struct alignas(8) is followed by the full payload of a relayed
+-// message.
++// This struct alignas(8) is followed by the full payload of a relayed message.
+ struct alignas(8) EventMessageFromRelayDataV0 {
+   ports::NodeName source;
+ };
+@@ -208,23 +190,21 @@ Channel::MessagePtr CreateMessage(MessageType type,
+   return msg_ptr;
+ }
+ 
+-// This method takes a second template argument which is another datatype
+-// which represents the smallest size this payload can be to be considered
+-// valid this MUST be used when there is more than one version of a message to
+-// specify the oldest version of the message.
++// This method takes a second template argument which is another datatype which
++// represents the smallest size this payload can be to be considered valid this
++// MUST be used when there is more than one version of a message to specify the
++// oldest version of the message.
+ template <typename DataType, typename MinSizedDataType>
+ bool GetMessagePayloadMinimumSized(const void* bytes,
+                                    size_t num_bytes,
+                                    DataType* out_data) {
+   static_assert(sizeof(DataType) > 0, "DataType must have non-zero size.");
+-  if (num_bytes < sizeof(Header) + sizeof(MinSizedDataType)) {
++  if (num_bytes < sizeof(Header) + sizeof(MinSizedDataType))
+     return false;
+-  }
+ 
+-  // Always make sure that the full object is zeored and default constructed
+-  // as we may not have the complete type. The default construction allows
+-  // fields to be default initialized to be resilient to older message
+-  // versions.
++  // Always make sure that the full object is zeored and default constructed as
++  // we may not have the complete type. The default construction allows fields
++  // to be default initialized to be resilient to older message versions.
+   memset(out_data, 0, sizeof(*out_data));
+   new (out_data) DataType;
+ 
+@@ -342,7 +322,6 @@ void NodeChannel::AcceptInvitee(const ports::NodeName& inviter_name,
+       MessageType::ACCEPT_INVITEE, sizeof(AcceptInviteeData), 0, &data);
+   data->inviter_name = inviter_name;
+   data->token = token;
+-  data->capabilities = local_capabilities_;
+   WriteChannelMessage(std::move(message));
+ }
+ 
+@@ -353,7 +332,6 @@ void NodeChannel::AcceptInvitation(const ports::NodeName& token,
+       MessageType::ACCEPT_INVITATION, sizeof(AcceptInvitationData), 0, &data);
+   data->token = token;
+   data->invitee_name = invitee_name;
+-  data->capabilities = local_capabilities_;
+   WriteChannelMessage(std::move(message));
+ }
+ 
+@@ -402,8 +380,7 @@ void NodeChannel::BrokerClientAdded(const ports::NodeName& client_name,
+ }
+ 
+ void NodeChannel::AcceptBrokerClient(const ports::NodeName& broker_name,
+-                                     PlatformHandle broker_channel,
+-                                     const uint64_t broker_capabilities) {
++                                     PlatformHandle broker_channel) {
+   AcceptBrokerClientData* data;
+   std::vector<PlatformHandle> handles;
+   if (broker_channel.is_valid())
+@@ -413,8 +390,6 @@ void NodeChannel::AcceptBrokerClient(const ports::NodeName& broker_name,
+                     sizeof(AcceptBrokerClientData), handles.size(), &data);
+   message->SetHandles(std::move(handles));
+   data->broker_name = broker_name;
+-  data->broker_capabilities = broker_capabilities;
+-  data->capabilities = local_capabilities_;
+   WriteChannelMessage(std::move(message));
+ }
+ 
+@@ -438,8 +413,7 @@ void NodeChannel::RequestIntroduction(const ports::NodeName& name) {
+ }
+ 
+ void NodeChannel::Introduce(const ports::NodeName& name,
+-                            PlatformHandle channel_handle,
+-                            uint64_t capabilities) {
++                            PlatformHandle channel_handle) {
+   IntroductionData* data;
+   std::vector<PlatformHandle> handles;
+   if (channel_handle.is_valid())
+@@ -448,9 +422,6 @@ void NodeChannel::Introduce(const ports::NodeName& name,
+       MessageType::INTRODUCE, sizeof(IntroductionData), handles.size(), &data);
+   message->SetHandles(std::move(handles));
+   data->name = name;
+-  // Note that these are not our capabilities, but the capabilities of the peer
+-  // we're introducing.
+-  data->capabilities = capabilities;
+   WriteChannelMessage(std::move(message));
+ }
+ 
+@@ -545,7 +516,6 @@ NodeChannel::NodeChannel(
+                                std::move(io_task_runner)))
+ #endif
+ {
+-  InitializeLocalCapabilities();
+ }
+ 
+ NodeChannel::~NodeChannel() {
+@@ -579,10 +549,7 @@ void NodeChannel::OnChannelMessage(const void* payload,
+   switch (header->type) {
+     case MessageType::ACCEPT_INVITEE: {
+       AcceptInviteeData data;
+-      if (GetMessagePayloadMinimumSized<AcceptInviteeData, AcceptInviteeDataV0>(
+-              payload, payload_size, &data)) {
+-        // Attach any capabilities that the other side advertised.
+-        SetRemoteCapabilities(data.capabilities);
++      if (GetMessagePayload(payload, payload_size, &data)) {
+         delegate_->OnAcceptInvitee(remote_node_name_, data.inviter_name,
+                                    data.token);
+         return;
+@@ -592,11 +559,7 @@ void NodeChannel::OnChannelMessage(const void* payload,
+ 
+     case MessageType::ACCEPT_INVITATION: {
+       AcceptInvitationData data;
+-      if (GetMessagePayloadMinimumSized<AcceptInvitationData,
+-                                        AcceptInvitationDataV0>(
+-              payload, payload_size, &data)) {
+-        // Attach any capabilities that the other side advertised.
+-        SetRemoteCapabilities(data.capabilities);
++      if (GetMessagePayload(payload, payload_size, &data)) {
+         delegate_->OnAcceptInvitation(remote_node_name_, data.token,
+                                       data.invitee_name);
+         return;
+@@ -643,9 +606,7 @@ void NodeChannel::OnChannelMessage(const void* payload,
+ 
+     case MessageType::ACCEPT_BROKER_CLIENT: {
+       AcceptBrokerClientData data;
+-      if (GetMessagePayloadMinimumSized<AcceptBrokerClientData,
+-                                        AcceptBrokerClientDataV0>(
+-              payload, payload_size, &data)) {
++      if (GetMessagePayload(payload, payload_size, &data)) {
+         PlatformHandle broker_channel;
+         if (handles.size() > 1) {
+           DLOG(ERROR) << "Dropping invalid AcceptBrokerClient message.";
+@@ -654,11 +615,8 @@ void NodeChannel::OnChannelMessage(const void* payload,
+         if (handles.size() == 1)
+           broker_channel = std::move(handles[0]);
+ 
+-        // Attach any capabilities that the other side advertised.
+-        SetRemoteCapabilities(data.capabilities);
+         delegate_->OnAcceptBrokerClient(remote_node_name_, data.broker_name,
+-                                        std::move(broker_channel),
+-                                        data.broker_capabilities);
++                                        std::move(broker_channel));
+         return;
+       }
+       break;
+@@ -702,8 +660,7 @@ void NodeChannel::OnChannelMessage(const void* payload,
+ 
+     case MessageType::INTRODUCE: {
+       IntroductionData data;
+-      if (GetMessagePayloadMinimumSized<IntroductionData, IntroductionDataV0>(
+-              payload, payload_size, &data)) {
++      if (GetMessagePayload(payload, payload_size, &data)) {
+         if (handles.size() > 1) {
+           DLOG(ERROR) << "Dropping invalid introduction message.";
+           break;
+@@ -712,11 +669,8 @@ void NodeChannel::OnChannelMessage(const void* payload,
+         if (handles.size() == 1)
+           channel_handle = std::move(handles[0]);
+ 
+-        // The node channel for this introduction will be created later, so we
+-        // can only pass up the capabilities we received from the broker for
+-        // that remote.
+         delegate_->OnIntroduce(remote_node_name_, data.name,
+-                               std::move(channel_handle), data.capabilities);
++                               std::move(channel_handle));
+         return;
+       }
+       break;
+@@ -836,8 +790,8 @@ void NodeChannel::OnChannelError(Channel::Error error) {
+     process_error_callback_.Run("Channel received a malformed message");
+   }
+ 
+-  // |OnChannelError()| may cause |this| to be destroyed, but still need
+-  // access to the name after that destruction. So make a copy of
++  // |OnChannelError()| may cause |this| to be destroyed, but still need access
++  // to the name after that destruction. So make a copy of
+   // |remote_node_name_| so it can be used if |this| becomes destroyed.
+   ports::NodeName node_name = remote_node_name_;
+   delegate_->OnChannelError(node_name, this);
+@@ -851,50 +805,5 @@ void NodeChannel::WriteChannelMessage(Channel::MessagePtr message) {
+     channel_->Write(std::move(message));
+ }
+ 
+-void NodeChannel::OfferChannelUpgrade() {
+-#if !defined(OS_NACL)
+-  base::AutoLock lock(channel_lock_);
+-  channel_->OfferChannelUpgrade();
+-#endif
+-}
+-
+-uint64_t NodeChannel::RemoteCapabilities() const {
+-  return remote_capabilities_;
+-}
+-
+-bool NodeChannel::HasRemoteCapability(const uint64_t capability) const {
+-  return (remote_capabilities_ & capability) == capability;
+-}
+-
+-void NodeChannel::SetRemoteCapabilities(const uint64_t capabilities) {
+-  remote_capabilities_ |= capabilities;
+-}
+-
+-uint64_t NodeChannel::LocalCapabilities() const {
+-  return local_capabilities_;
+-}
+-
+-bool NodeChannel::HasLocalCapability(const uint64_t capability) const {
+-  return (local_capabilities_ & capability) == capability;
+-}
+-
+-void NodeChannel::SetLocalCapabilities(const uint64_t capabilities) {
+-  if (GetConfiguration().dont_advertise_capabilities) {
+-    return;
+-  }
+-
+-  local_capabilities_ |= capabilities;
+-}
+-
+-void NodeChannel::InitializeLocalCapabilities() {
+-  if (GetConfiguration().dont_advertise_capabilities) {
+-    return;
+-  }
+-
+-  if (core::Channel::SupportsChannelUpgrade()) {
+-    SetLocalCapabilities(kNodeCapabilitySupportsUpgrade);
+-  }
+-}
+-
+ }  // namespace core
+ }  // namespace mojo
+diff --git a/mojo/core/node_channel.h b/mojo/core/node_channel.h
+index b0370543fa32a3bc7d942ff7bd07c3bb36e225cc..74306a56359cdc44b79797e6cc3c134b8029d69e 100644
+--- a/mojo/core/node_channel.h
++++ b/mojo/core/node_channel.h
+@@ -26,9 +26,6 @@
+ namespace mojo {
+ namespace core {
+ 
+-constexpr uint64_t kNodeCapabilityNone = 0;
+-constexpr uint64_t kNodeCapabilitySupportsUpgrade = 1;
+-
+ // Wraps a Channel to send and receive Node control messages.
+ class MOJO_SYSTEM_IMPL_EXPORT NodeChannel
+     : public base::RefCountedDeleteOnSequence<NodeChannel>,
+@@ -51,8 +48,7 @@ class MOJO_SYSTEM_IMPL_EXPORT NodeChannel
+                                      PlatformHandle broker_channel) = 0;
+     virtual void OnAcceptBrokerClient(const ports::NodeName& from_node,
+                                       const ports::NodeName& broker_name,
+-                                      PlatformHandle broker_channel,
+-                                      const uint64_t broker_capabilities) = 0;
++                                      PlatformHandle broker_channel) = 0;
+     virtual void OnEventMessage(const ports::NodeName& from_node,
+                                 Channel::MessagePtr message) = 0;
+     virtual void OnRequestPortMerge(const ports::NodeName& from_node,
+@@ -62,8 +58,7 @@ class MOJO_SYSTEM_IMPL_EXPORT NodeChannel
+                                        const ports::NodeName& name) = 0;
+     virtual void OnIntroduce(const ports::NodeName& from_node,
+                              const ports::NodeName& name,
+-                             PlatformHandle channel_handle,
+-                             const uint64_t remote_capabilities) = 0;
++                             PlatformHandle channel_handle) = 0;
+     virtual void OnBroadcast(const ports::NodeName& from_node,
+                              Channel::MessagePtr message) = 0;
+ #if defined(OS_WIN)
+@@ -135,26 +130,15 @@ class MOJO_SYSTEM_IMPL_EXPORT NodeChannel
+   void BrokerClientAdded(const ports::NodeName& client_name,
+                          PlatformHandle broker_channel);
+   void AcceptBrokerClient(const ports::NodeName& broker_name,
+-                          PlatformHandle broker_channel,
+-                          const uint64_t broker_capabilities);
++                          PlatformHandle broker_channel);
+   void RequestPortMerge(const ports::PortName& connector_port_name,
+                         const std::string& token);
+   void RequestIntroduction(const ports::NodeName& name);
+-  void Introduce(const ports::NodeName& name,
+-                 PlatformHandle channel_handle,
+-                 uint64_t capabilities);
++  void Introduce(const ports::NodeName& name, PlatformHandle channel_handle);
+   void SendChannelMessage(Channel::MessagePtr message);
+   void Broadcast(Channel::MessagePtr message);
+   void BindBrokerHost(PlatformHandle broker_host_handle);
+ 
+-  uint64_t RemoteCapabilities() const;
+-  bool HasRemoteCapability(const uint64_t capability) const;
+-  void SetRemoteCapabilities(const uint64_t capability);
+-
+-  uint64_t LocalCapabilities() const;
+-  bool HasLocalCapability(const uint64_t capability) const;
+-  void SetLocalCapabilities(const uint64_t capability);
+-
+ #if defined(OS_WIN)
+   // Relay the message to the specified node via this channel.  This is used to
+   // pass windows handles between two processes that do not have permission to
+@@ -170,8 +154,6 @@ class MOJO_SYSTEM_IMPL_EXPORT NodeChannel
+                              Channel::MessagePtr message);
+ #endif
+ 
+-  void OfferChannelUpgrade();
+-
+  private:
+   friend class base::RefCountedDeleteOnSequence<NodeChannel>;
+   friend class base::DeleteHelper<NodeChannel>;
+@@ -199,10 +181,6 @@ class MOJO_SYSTEM_IMPL_EXPORT NodeChannel
+ 
+   void WriteChannelMessage(Channel::MessagePtr message);
+ 
+-  // This method is responsible for setting up the default set of capabilities
+-  // for this channel.
+-  void InitializeLocalCapabilities();
+-
+   Delegate* const delegate_;
+   const ProcessErrorCallback process_error_callback_;
+ 
+@@ -212,9 +190,6 @@ class MOJO_SYSTEM_IMPL_EXPORT NodeChannel
+   // Must only be accessed from the owning task runner's thread.
+   ports::NodeName remote_node_name_;
+ 
+-  uint64_t remote_capabilities_ = kNodeCapabilityNone;
+-  uint64_t local_capabilities_ = kNodeCapabilityNone;
+-
+   base::Lock remote_process_handle_lock_;
+   base::Process remote_process_handle_;
+ 
+diff --git a/mojo/core/node_controller.cc b/mojo/core/node_controller.cc
+index 014dfd9acf0161b10910959824c457b2840d59d2..86b397df1431b2e83ccfceafe0af99e2f6d38c9e 100644
+--- a/mojo/core/node_controller.cc
++++ b/mojo/core/node_controller.cc
+@@ -867,8 +867,7 @@ void NodeController::OnAcceptInvitation(const ports::NodeName& from_node,
+ 
+     if (!inviter) {
+       // Yes, we're the broker. We can initialize the client directly.
+-      channel->AcceptBrokerClient(name_, PlatformHandle(),
+-                                  channel->LocalCapabilities());
++      channel->AcceptBrokerClient(name_, PlatformHandle());
+     } else {
+       // We aren't the broker, so wait for a broker connection.
+       base::AutoLock lock(broker_lock_);
+@@ -936,14 +935,12 @@ void NodeController::OnBrokerClientAdded(const ports::NodeName& from_node,
+ 
+   DVLOG(1) << "Client " << client_name << " accepted by broker " << from_node;
+ 
+-  client->AcceptBrokerClient(from_node, std::move(broker_channel),
+-                             GetBrokerChannel()->RemoteCapabilities());
++  client->AcceptBrokerClient(from_node, std::move(broker_channel));
+ }
+ 
+ void NodeController::OnAcceptBrokerClient(const ports::NodeName& from_node,
+                                           const ports::NodeName& broker_name,
+-                                          PlatformHandle broker_channel,
+-                                          const uint64_t broker_capabilities) {
++                                          PlatformHandle broker_channel) {
+   DCHECK(!GetConfiguration().is_broker_process);
+ 
+   // This node should already have an inviter in bootstrap mode.
+@@ -982,7 +979,6 @@ void NodeController::OnAcceptBrokerClient(const ports::NodeName& from_node,
+         ConnectionParams(PlatformChannelEndpoint(std::move(broker_channel))),
+         Channel::HandlePolicy::kAcceptHandles, io_task_runner_,
+         ProcessErrorCallback());
+-    broker->SetRemoteCapabilities(broker_capabilities);
+     AddPeer(broker_name, broker, true /* start_channel */);
+   }
+ 
+@@ -1018,10 +1014,6 @@ void NodeController::OnAcceptBrokerClient(const ports::NodeName& from_node,
+     }
+   }
+ #endif
+-  if (inviter->HasLocalCapability(kNodeCapabilitySupportsUpgrade) &&
+-      inviter->HasRemoteCapability(kNodeCapabilitySupportsUpgrade)) {
+-    inviter->OfferChannelUpgrade();
+-  }
+ 
+   DVLOG(1) << "Client " << name_ << " accepted by broker " << broker_name;
+ }
+@@ -1100,22 +1092,19 @@ void NodeController::OnRequestIntroduction(const ports::NodeName& from_node,
+   scoped_refptr<NodeChannel> new_friend = GetPeerChannel(name);
+   if (!new_friend) {
+     // We don't know who they're talking about!
+-    requestor->Introduce(name, PlatformHandle(), kNodeCapabilityNone);
++    requestor->Introduce(name, PlatformHandle());
+   } else {
+     PlatformChannel new_channel;
+     requestor->Introduce(name,
+-                         new_channel.TakeLocalEndpoint().TakePlatformHandle(),
+-                         new_friend->RemoteCapabilities());
+-    new_friend->Introduce(from_node,
+-                          new_channel.TakeRemoteEndpoint().TakePlatformHandle(),
+-                          requestor->RemoteCapabilities());
++                         new_channel.TakeLocalEndpoint().TakePlatformHandle());
++    new_friend->Introduce(
++        from_node, new_channel.TakeRemoteEndpoint().TakePlatformHandle());
+   }
+ }
+ 
+ void NodeController::OnIntroduce(const ports::NodeName& from_node,
+                                  const ports::NodeName& name,
+-                                 PlatformHandle channel_handle,
+-                                 const uint64_t remote_capabilities) {
++                                 PlatformHandle channel_handle) {
+   DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
+ 
+   if (!channel_handle.is_valid()) {
+@@ -1142,13 +1131,6 @@ void NodeController::OnIntroduce(const ports::NodeName& from_node,
+ 
+   DVLOG(1) << "Adding new peer " << name << " via broker introduction.";
+   AddPeer(name, channel, true /* start_channel */);
+-
+-  channel->SetRemoteCapabilities(remote_capabilities);
+-
+-  if (channel->HasLocalCapability(kNodeCapabilitySupportsUpgrade) &&
+-      channel->HasRemoteCapability(kNodeCapabilitySupportsUpgrade)) {
+-    channel->OfferChannelUpgrade();
+-  }
+ }
+ 
+ void NodeController::OnBroadcast(const ports::NodeName& from_node,
+@@ -1357,13 +1339,11 @@ NodeController::IsolatedConnection::IsolatedConnection(
+ 
+ NodeController::IsolatedConnection::~IsolatedConnection() = default;
+ 
+-NodeController::IsolatedConnection&
+-NodeController::IsolatedConnection::operator=(const IsolatedConnection& other) =
+-    default;
++NodeController::IsolatedConnection& NodeController::IsolatedConnection::
++operator=(const IsolatedConnection& other) = default;
+ 
+-NodeController::IsolatedConnection&
+-NodeController::IsolatedConnection::operator=(IsolatedConnection&& other) =
+-    default;
++NodeController::IsolatedConnection& NodeController::IsolatedConnection::
++operator=(IsolatedConnection&& other) = default;
+ 
+ }  // namespace core
+ }  // namespace mojo
+diff --git a/mojo/core/node_controller.h b/mojo/core/node_controller.h
+index affbedab99d4a6b3090d332642d0d1ea03705b3e..254efe41161c447d349519033bf64b74050a495b 100644
+--- a/mojo/core/node_controller.h
++++ b/mojo/core/node_controller.h
+@@ -206,8 +206,7 @@ class MOJO_SYSTEM_IMPL_EXPORT NodeController : public ports::NodeDelegate,
+                            PlatformHandle broker_channel) override;
+   void OnAcceptBrokerClient(const ports::NodeName& from_node,
+                             const ports::NodeName& broker_name,
+-                            PlatformHandle broker_channel,
+-                            const uint64_t broker_capabilities) override;
++                            PlatformHandle broker_channel) override;
+   void OnEventMessage(const ports::NodeName& from_node,
+                       Channel::MessagePtr message) override;
+   void OnRequestPortMerge(const ports::NodeName& from_node,
+@@ -217,8 +216,7 @@ class MOJO_SYSTEM_IMPL_EXPORT NodeController : public ports::NodeDelegate,
+                              const ports::NodeName& name) override;
+   void OnIntroduce(const ports::NodeName& from_node,
+                    const ports::NodeName& name,
+-                   PlatformHandle channel_handle,
+-                   const uint64_t remote_capailities) override;
++                   PlatformHandle channel_handle) override;
+   void OnBroadcast(const ports::NodeName& from_node,
+                    Channel::MessagePtr message) override;
+ #if defined(OS_WIN)
+diff --git a/mojo/core/test/mock_node_channel_delegate.h b/mojo/core/test/mock_node_channel_delegate.h
+index f58552f39a000ead793897de7e597f945b359548..06ca96857b9472682d577a802c68a56a7af0aacd 100644
+--- a/mojo/core/test/mock_node_channel_delegate.h
++++ b/mojo/core/test/mock_node_channel_delegate.h
+@@ -54,8 +54,7 @@ class MockNodeChannelDelegate
+               OnAcceptBrokerClient,
+               (const NodeName& from_node,
+                const NodeName& broker_name,
+-               PlatformHandle broker_channel,
+-               const uint64_t capabilities),
++               PlatformHandle broker_channel),
+               (override));
+   MOCK_METHOD(void,
+               OnEventMessage,
+@@ -75,8 +74,7 @@ class MockNodeChannelDelegate
+               OnIntroduce,
+               (const NodeName& from_node,
+                const NodeName& name,
+-               PlatformHandle channel_handle,
+-               const uint64_t remote_capabilites),
++               PlatformHandle channel_handle),
+               (override));
+   MOCK_METHOD(void,
+               OnBroadcast,
+diff --git a/mojo/core/test/multiprocess_test_helper.cc b/mojo/core/test/multiprocess_test_helper.cc
+index 530a0fd592130c0fb8b768e3c0539846641616f4..acf2d73d86458630cc927f37e5ae420ebede6e2a 100644
+--- a/mojo/core/test/multiprocess_test_helper.cc
++++ b/mojo/core/test/multiprocess_test_helper.cc
+@@ -51,7 +51,6 @@ const char kNamedPipeName[] = "named-pipe-name";
+ const char kRunAsBrokerClient[] = "run-as-broker-client";
+ const char kAcceptInvitationAsync[] = "accept-invitation-async";
+ const char kTestChildMessagePipeName[] = "test_pipe";
+-const char kDisableAllCapabilities[] = "disable-all-capabilities";
+ 
+ // For use (and only valid) in a test child process:
+ base::LazyInstance<IsolatedConnection>::Leaky g_child_isolated_connection;
+@@ -116,7 +115,6 @@ ScopedMessagePipeHandle MultiprocessTestHelper::StartChildWithExtraSwitch(
+   base::LaunchOptions options;
+   switch (launch_type) {
+     case LaunchType::CHILD:
+-    case LaunchType::CHILD_WITHOUT_CAPABILITIES:
+     case LaunchType::PEER:
+     case LaunchType::ASYNC:
+       channel.PrepareToPassRemoteEndpoint(&options, &command_line);
+@@ -163,7 +161,6 @@ ScopedMessagePipeHandle MultiprocessTestHelper::StartChildWithExtraSwitch(
+   PlatformChannelServerEndpoint server_endpoint;
+   switch (launch_type) {
+     case LaunchType::CHILD:
+-    case LaunchType::CHILD_WITHOUT_CAPABILITIES:
+     case LaunchType::PEER:
+     case LaunchType::ASYNC:
+       local_channel_endpoint = channel.TakeLocalEndpoint();
+@@ -183,12 +180,8 @@ ScopedMessagePipeHandle MultiprocessTestHelper::StartChildWithExtraSwitch(
+   OutgoingInvitation child_invitation;
+   ScopedMessagePipeHandle pipe;
+   switch (launch_type) {
+-    case LaunchType::CHILD_WITHOUT_CAPABILITIES:
+     case LaunchType::ASYNC:
+-      // It's one or the other
+-      command_line.AppendSwitch(launch_type == LaunchType::ASYNC
+-                                    ? kAcceptInvitationAsync
+-                                    : kDisableAllCapabilities);
++      command_line.AppendSwitch(kAcceptInvitationAsync);
+       FALLTHROUGH;
+     case LaunchType::CHILD:
+ #if !defined(OS_FUCHSIA)
+@@ -218,14 +211,12 @@ ScopedMessagePipeHandle MultiprocessTestHelper::StartChildWithExtraSwitch(
+   test_child_ =
+       base::SpawnMultiProcessTestChild(test_child_main, command_line, options);
+ 
+-  if (launch_type == LaunchType::CHILD ||
+-      launch_type == LaunchType::CHILD_WITHOUT_CAPABILITIES ||
+-      launch_type == LaunchType::PEER || launch_type == LaunchType::ASYNC) {
++  if (launch_type == LaunchType::CHILD || launch_type == LaunchType::PEER ||
++      launch_type == LaunchType::ASYNC) {
+     channel.RemoteProcessLaunchAttempted();
+   }
+ 
+-  if (launch_type == LaunchType::CHILD ||
+-      launch_type == LaunchType::CHILD_WITHOUT_CAPABILITIES) {
++  if (launch_type == LaunchType::CHILD) {
+     DCHECK(local_channel_endpoint.is_valid());
+     OutgoingInvitation::Send(std::move(child_invitation), test_child_.Handle(),
+                              std::move(local_channel_endpoint),
+diff --git a/mojo/core/test/multiprocess_test_helper.h b/mojo/core/test/multiprocess_test_helper.h
+index b0cc7fe7ed7ae6a2e12e628a8addc1d78cc91482..f74ec31ff8be8ee04879b6cd29518cbdd1841162 100644
+--- a/mojo/core/test/multiprocess_test_helper.h
++++ b/mojo/core/test/multiprocess_test_helper.h
+@@ -44,9 +44,6 @@ class MultiprocessTestHelper {
+     // system, using a named pipe.
+     NAMED_PEER,
+ #endif  //  !defined(OS_FUCHSIA)
+-    // This is the same as child; however, it will never advertise any
+-    // capabilities.
+-    CHILD_WITHOUT_CAPABILITIES
+   };
+ 
+   MultiprocessTestHelper();
+diff --git a/mojo/core/test/run_all_unittests.cc b/mojo/core/test/run_all_unittests.cc
+index 41b6f808d1c9c6379630c41cfad98af0c251b792..7e91806dc3d2ce6489e08c8392bf0f9dcc0b8b79 100644
+--- a/mojo/core/test/run_all_unittests.cc
++++ b/mojo/core/test/run_all_unittests.cc
+@@ -21,10 +21,6 @@
+ #include "mojo/public/tests/test_support_private.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+ 
+-namespace {
+-const char kDisableAllCapabilities[] = "disable-all-capabilities";
+-}
+-
+ int main(int argc, char** argv) {
+ #if !defined(OS_ANDROID)
+   // Silence death test thread warnings on Linux. We can afford to run our death
+@@ -52,12 +48,6 @@ int main(int argc, char** argv) {
+           switches::kTestChildProcess)) {
+     mojo_config.is_broker_process = true;
+   }
+-
+-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+-          kDisableAllCapabilities)) {
+-    mojo_config.dont_advertise_capabilities = true;
+-  }
+-
+   mojo::core::Init(mojo_config);
+ 
+   mojo::test::TestSupport::Init(new mojo::core::test::TestSupportImpl());
+diff --git a/sandbox/linux/seccomp-bpf-helpers/baseline_policy.cc b/sandbox/linux/seccomp-bpf-helpers/baseline_policy.cc
+index 5c70e1f1ffc7d6e01472169dc14441e47fa8fc40..e00e3125993e11003f6544dca3fdaf295ad4dd3a 100644
+--- a/sandbox/linux/seccomp-bpf-helpers/baseline_policy.cc
++++ b/sandbox/linux/seccomp-bpf-helpers/baseline_policy.cc
+@@ -40,11 +40,9 @@ namespace sandbox {
+ namespace {
+ 
+ bool IsBaselinePolicyAllowed(int sysno) {
+-  // clang-format off
+   return SyscallSets::IsAllowedAddressSpaceAccess(sysno) ||
+          SyscallSets::IsAllowedBasicScheduler(sysno) ||
+          SyscallSets::IsAllowedEpoll(sysno) ||
+-         SyscallSets::IsEventFd(sysno) ||
+          SyscallSets::IsAllowedFileSystemAccessViaFd(sysno) ||
+          SyscallSets::IsAllowedFutex(sysno) ||
+          SyscallSets::IsAllowedGeneralIo(sysno) ||
+@@ -61,7 +59,6 @@ bool IsBaselinePolicyAllowed(int sysno) {
+          SyscallSets::IsMipsPrivate(sysno) ||
+ #endif
+          SyscallSets::IsAllowedOperationOnFd(sysno);
+-  // clang-format on
+ }
+ 
+ // System calls that will trigger the crashing SIGSYS handler.
+@@ -71,6 +68,7 @@ bool IsBaselinePolicyWatched(int sysno) {
+          SyscallSets::IsAdvancedTimer(sysno) ||
+          SyscallSets::IsAsyncIo(sysno) ||
+          SyscallSets::IsDebug(sysno) ||
++         SyscallSets::IsEventFd(sysno) ||
+          SyscallSets::IsExtendedAttributes(sysno) ||
+          SyscallSets::IsFaNotify(sysno) ||
+          SyscallSets::IsFsControl(sysno) ||
+diff --git a/sandbox/linux/seccomp-bpf-helpers/baseline_policy_android.cc b/sandbox/linux/seccomp-bpf-helpers/baseline_policy_android.cc
+index c9d598cfd00330d5fb9b9c430cc4f0e05bf59044..35ab90e3f3cb7767ce55813a8fe0e7f17c43d30d 100644
+--- a/sandbox/linux/seccomp-bpf-helpers/baseline_policy_android.cc
++++ b/sandbox/linux/seccomp-bpf-helpers/baseline_policy_android.cc
+@@ -151,6 +151,11 @@ ResultExpr BaselinePolicyAndroid::EvaluateSyscall(int sysno) const {
+       break;
+   }
+ 
++  // https://crbug.com/772441 and https://crbug.com/760020.
++  if (SyscallSets::IsEventFd(sysno)) {
++    return Allow();
++  }
++
+   // Ptrace is allowed so the crash reporter can fork in a renderer
+   // and then ptrace the parent. https://crbug.com/933418
+   if (sysno == __NR_ptrace) {
+diff --git a/sandbox/linux/seccomp-bpf-helpers/baseline_policy_unittest.cc b/sandbox/linux/seccomp-bpf-helpers/baseline_policy_unittest.cc
+index 68c29b564bb8f9eb70a3cd16365ac4c87d2b7cef..01c046dda28f64bf69add6389fe7d4da74a870cb 100644
+--- a/sandbox/linux/seccomp-bpf-helpers/baseline_policy_unittest.cc
++++ b/sandbox/linux/seccomp-bpf-helpers/baseline_policy_unittest.cc
+@@ -303,6 +303,7 @@ TEST_BASELINE_SIGSYS(__NR_syslog)
+ TEST_BASELINE_SIGSYS(__NR_timer_create)
+ 
+ #if !defined(__aarch64__)
++TEST_BASELINE_SIGSYS(__NR_eventfd)
+ TEST_BASELINE_SIGSYS(__NR_inotify_init)
+ TEST_BASELINE_SIGSYS(__NR_vserver)
+ #endif
+diff --git a/sandbox/linux/seccomp-bpf-helpers/syscall_parameters_restrictions.cc b/sandbox/linux/seccomp-bpf-helpers/syscall_parameters_restrictions.cc
+index 8fa54f5a077ae13b098bf10d5ff004a959e9eb71..2a97d3916c89ae3c4e6e8340d01d774dc8bf743b 100644
+--- a/sandbox/linux/seccomp-bpf-helpers/syscall_parameters_restrictions.cc
++++ b/sandbox/linux/seccomp-bpf-helpers/syscall_parameters_restrictions.cc
+@@ -215,7 +215,7 @@ ResultExpr RestrictMmapFlags() {
+   // TODO(davidung), remove MAP_DENYWRITE with updated Tegra libraries.
+   const uint64_t kAllowedMask = MAP_SHARED | MAP_PRIVATE | MAP_ANONYMOUS |
+                                 MAP_STACK | MAP_NORESERVE | MAP_FIXED |
+-                                MAP_DENYWRITE | MAP_LOCKED;
++                                MAP_DENYWRITE;
+   const Arg<int> flags(3);
+   return If((flags & ~kAllowedMask) == 0, Allow()).Else(CrashSIGSYS());
+ }
+@@ -245,12 +245,9 @@ ResultExpr RestrictFcntlCommands() {
+ 
+   const uint64_t kAllowedMask = O_ACCMODE | O_APPEND | O_NONBLOCK | O_SYNC |
+                                 kOLargeFileFlag | O_CLOEXEC | O_NOATIME;
+-  const uint64_t kAllowedSeals = F_SEAL_SEAL | F_SEAL_GROW | F_SEAL_SHRINK;
+-  // clang-format off
+   return Switch(cmd)
+       .CASES((F_GETFL,
+               F_GETFD,
+-              F_GET_SEALS,
+               F_SETFD,
+               F_SETLK,
+               F_SETLKW,
+@@ -260,10 +257,7 @@ ResultExpr RestrictFcntlCommands() {
+              Allow())
+       .Case(F_SETFL,
+             If((long_arg & ~kAllowedMask) == 0, Allow()).Else(CrashSIGSYS()))
+-      .Case(F_ADD_SEALS,
+-            If((long_arg & ~kAllowedSeals) == 0, Allow()).Else(CrashSIGSYS()))
+       .Default(CrashSIGSYS());
+-  // clang-format on
+ }
+ 
+ #if defined(__i386__) || defined(__mips__)
+diff --git a/sandbox/linux/seccomp-bpf-helpers/syscall_sets.cc b/sandbox/linux/seccomp-bpf-helpers/syscall_sets.cc
+index f40d436edfbdc0923665ed39f98c85a7c57db22a..d9d18822f6702f85f27b07c30d75ecdcc2fa90bf 100644
+--- a/sandbox/linux/seccomp-bpf-helpers/syscall_sets.cc
++++ b/sandbox/linux/seccomp-bpf-helpers/syscall_sets.cc
+@@ -168,11 +168,9 @@ bool SyscallSets::IsFileSystem(int sysno) {
+ bool SyscallSets::IsAllowedFileSystemAccessViaFd(int sysno) {
+   switch (sysno) {
+     case __NR_fstat:
+-    case __NR_ftruncate:
+ #if defined(__i386__) || defined(__arm__) || \
+     (defined(ARCH_CPU_MIPS_FAMILY) && defined(ARCH_CPU_32_BITS))
+     case __NR_fstat64:
+-    case __NR_ftruncate64:
+ #endif
+       return true;
+ // TODO(jln): these should be denied gracefully as well (moved below).
+@@ -213,9 +211,14 @@ bool SyscallSets::IsDeniedFileSystemAccessViaFd(int sysno) {
+     case __NR_fallocate:
+     case __NR_fchmod:
+     case __NR_fchown:
++    case __NR_ftruncate:
+ #if defined(__i386__) || defined(__arm__)
+     case __NR_fchown32:
+ #endif
++#if defined(__i386__) || defined(__arm__) || \
++    (defined(ARCH_CPU_MIPS_FAMILY) && defined(ARCH_CPU_32_BITS))
++    case __NR_ftruncate64:
++#endif
+ #if !defined(__aarch64__)
+     case __NR_getdents:    // EPERM not a valid errno.
+ #endif
+diff --git a/sandbox/policy/linux/bpf_base_policy_linux.cc b/sandbox/policy/linux/bpf_base_policy_linux.cc
+index 04bd9c84794f96d298c43b41504edd341f98941d..90164eaecf3c728fa9e099d6d3479023448662cb 100644
+--- a/sandbox/policy/linux/bpf_base_policy_linux.cc
++++ b/sandbox/policy/linux/bpf_base_policy_linux.cc
+@@ -31,11 +31,6 @@ BPFBasePolicy::~BPFBasePolicy() {}
+ ResultExpr BPFBasePolicy::EvaluateSyscall(int system_call_number) const {
+   DCHECK(baseline_policy_);
+ 
+-  // Used for shared memory Mojo channels on Linux.
+-  if (system_call_number == __NR_memfd_create) {
+-    return Allow();
+-  }
+-
+   // set_robust_list(2) is part of the futex(2) infrastructure.
+   // Chrome on Linux/Chrome OS will call set_robust_list(2) frequently.
+   // The baseline policy will EPERM set_robust_list(2), but on systems with
+diff --git a/sandbox/policy/linux/bpf_gpu_policy_linux.cc b/sandbox/policy/linux/bpf_gpu_policy_linux.cc
+index dd4c311605654b7270d133b6090175e163d6a8d8..829efee8bef492daaaa5696f1738e61bbc2a43d2 100644
+--- a/sandbox/policy/linux/bpf_gpu_policy_linux.cc
++++ b/sandbox/policy/linux/bpf_gpu_policy_linux.cc
+@@ -93,6 +93,8 @@ ResultExpr GpuProcessPolicy::EvaluateSyscall(int sysno) const {
+     default:
+       break;
+   }
++  if (SyscallSets::IsEventFd(sysno))
++    return Allow();
+ 
+ #if (defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)) && defined(USE_X11)
+   if (SyscallSets::IsSystemVSharedMemory(sysno))
+diff --git a/tools/metrics/histograms/enums.xml b/tools/metrics/histograms/enums.xml
+index 9e745a4bbaffb88d30ea9e3ddb5d76e371cddc4f..8f222bb927d4dcbc4727fdfc6b5760f3c1a06eda 100644
+--- a/tools/metrics/histograms/enums.xml
++++ b/tools/metrics/histograms/enums.xml
+@@ -43526,7 +43526,6 @@ from previous Chrome versions.
+   <int value="-1480926949" label="MaterialDesignBookmarks:enabled"/>
+   <int value="-1480866718" label="ash-disable-login-dim-and-blur"/>
+   <int value="-1480606359" label="AssistantIntentPageUrl:enabled"/>
+-  <int value="-1478929417" label="MojoLinuxChannelSharedMem:enabled"/>
+   <int value="-1478876902" label="disable-permission-action-reporting"/>
+   <int value="-1478137998" label="lite-video-default-downlink-bandwidth-kbps"/>
+   <int value="-1477686864" label="OmniboxRichAutocompletion:enabled"/>
+@@ -47026,7 +47025,6 @@ from previous Chrome versions.
+       label="OmniboxUIExperimentVerticalMarginLimitToNonTouchOnly:disabled"/>
+   <int value="1760946944" label="MacViewsAutofillPopup:disabled"/>
+   <int value="1762320532" label="AutofillKeyboardAccessory:enabled"/>
+-  <int value="1764618580" label="MojoLinuxChannelSharedMem:disabled"/>
+   <int value="1766676896" label="affiliation-based-matching:disabled"/>
+   <int value="1767411597" label="DisallowUnsafeHttpDownloads:enabled"/>
+   <int value="1768759000" label="AutofillProfileServerValidation:disabled"/>
