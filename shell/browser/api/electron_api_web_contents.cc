@@ -2829,6 +2829,15 @@ v8::Local<v8::Promise> WebContents::CapturePage(gin::Arguments* args) {
     return handle;
   }
 
+  // If the view's renderer is suspended this may fail - bail.
+  // See CopyFromSurface in content/public/browser/render_widget_host_view.h.
+  auto* rfh = web_contents()->GetMainFrame();
+  if (rfh &&
+      rfh->GetVisibilityState() == blink::mojom::PageVisibilityState::kHidden) {
+    promise.Resolve(gfx::Image());
+    return handle;
+  }
+
   // Capture full page if user doesn't specify a |rect|.
   const gfx::Size view_size =
       rect.IsEmpty() ? view->GetViewBounds().size() : rect.size();
