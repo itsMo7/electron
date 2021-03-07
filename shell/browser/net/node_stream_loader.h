@@ -12,6 +12,7 @@
 
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
+#include "mojo/public/cpp/bindings/strong_binding.h"
 #include "mojo/public/cpp/system/data_pipe_producer.h"
 #include "services/network/public/mojom/url_loader.mojom.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
@@ -30,7 +31,7 @@ namespace electron {
 class NodeStreamLoader : public network::mojom::URLLoader {
  public:
   NodeStreamLoader(network::mojom::URLResponseHeadPtr head,
-                   mojo::PendingReceiver<network::mojom::URLLoader> loader,
+                   network::mojom::URLLoaderRequest loader,
                    mojo::PendingRemote<network::mojom::URLLoaderClient> client,
                    v8::Isolate* isolate,
                    v8::Local<v8::Object> emitter);
@@ -60,7 +61,7 @@ class NodeStreamLoader : public network::mojom::URLLoader {
   void PauseReadingBodyFromNet() override {}
   void ResumeReadingBodyFromNet() override {}
 
-  mojo::Receiver<network::mojom::URLLoader> url_loader_;
+  mojo::Binding<network::mojom::URLLoader> binding_;
   mojo::Remote<network::mojom::URLLoaderClient> client_;
 
   v8::Isolate* isolate_;

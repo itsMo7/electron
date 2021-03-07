@@ -49,7 +49,7 @@ function makeRemotely (windowGetter: () => BrowserWindow) {
 function makeWindow () {
   let w: BrowserWindow;
   before(async () => {
-    w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, enableRemoteModule: true, contextIsolation: false } });
+    w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, enableRemoteModule: true } });
     await w.loadURL('about:blank');
     await w.webContents.executeJavaScript(`{
       const chai_1 = window.chai_1 = require('chai')
@@ -65,7 +65,7 @@ function makeWindow () {
 function makeEachWindow () {
   let w: BrowserWindow;
   beforeEach(async () => {
-    w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, enableRemoteModule: true, contextIsolation: false } });
+    w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, enableRemoteModule: true } });
     await w.loadURL('about:blank');
     await w.webContents.executeJavaScript(`{
       const chai_1 = window.chai_1 = require('chai')
@@ -333,8 +333,7 @@ ifdescribe(features.isRemoteModuleEnabled())('remote module', () => {
         show: false,
         webPreferences: {
           preload,
-          enableRemoteModule: true,
-          contextIsolation: false
+          enableRemoteModule: true
         }
       });
       w.loadURL('about:blank');
@@ -348,8 +347,7 @@ ifdescribe(features.isRemoteModuleEnabled())('remote module', () => {
         show: false,
         webPreferences: {
           nodeIntegration: true,
-          enableRemoteModule: true,
-          contextIsolation: false
+          enableRemoteModule: true
         }
       });
 
@@ -436,8 +434,7 @@ ifdescribe(features.isRemoteModuleEnabled())('remote module', () => {
         show: false,
         webPreferences: {
           nodeIntegration: true,
-          enableRemoteModule: true,
-          contextIsolation: false
+          enableRemoteModule: true
         }
       });
       await w.loadFile(path.join(fixtures, 'remote-event-handler.html'));

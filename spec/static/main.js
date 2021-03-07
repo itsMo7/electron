@@ -109,8 +109,7 @@ app.whenReady().then(async function () {
       backgroundThrottling: false,
       nodeIntegration: true,
       enableRemoteModule: false,
-      webviewTag: true,
-      contextIsolation: false
+      webviewTag: true
     }
   });
   window.loadFile('static/index.html', {

@@ -12,17 +12,15 @@
 #include "shell/browser/ui/autofill_popup.h"
 #endif
 
-#include "mojo/public/cpp/bindings/associated_receiver.h"
-#include "mojo/public/cpp/bindings/pending_associated_receiver.h"
+#include "mojo/public/cpp/bindings/associated_binding.h"
 #include "shell/common/api/api.mojom.h"
 
 namespace electron {
 
 class AutofillDriver : public mojom::ElectronAutofillDriver {
  public:
-  AutofillDriver(
-      content::RenderFrameHost* render_frame_host,
-      mojo::PendingAssociatedReceiver<mojom::ElectronAutofillDriver> request);
+  AutofillDriver(content::RenderFrameHost* render_frame_host,
+                 mojom::ElectronAutofillDriverAssociatedRequest request);
 
   ~AutofillDriver() override;
 
@@ -38,7 +36,7 @@ class AutofillDriver : public mojom::ElectronAutofillDriver {
   std::unique_ptr<AutofillPopup> autofill_popup_;
 #endif
 
-  mojo::AssociatedReceiver<mojom::ElectronAutofillDriver> receiver_;
+  mojo::AssociatedBinding<mojom::ElectronAutofillDriver> binding_;
 };
 
 }  // namespace electron

@@ -112,7 +112,6 @@ describe('<webview> tag', function () {
     it('inserts node symbols when set', async () => {
       const message = await startLoadingWebViewAndWaitForMessage(webview, {
         nodeintegration: 'on',
-        webpreferences: 'contextIsolation=no',
         src: `file://${fixtures}/pages/d.html`
       });
 
@@ -133,7 +132,6 @@ describe('<webview> tag', function () {
 
       const message = await startLoadingWebViewAndWaitForMessage(webview, {
         nodeintegration: 'on',
-        webpreferences: 'contextIsolation=no',
         src: `file://${fixtures}/pages/post.html`
       });
 
@@ -156,7 +154,6 @@ describe('<webview> tag', function () {
       });
       loadWebView(webview, {
         allowpopups: 'on',
-        webpreferences: 'contextIsolation=no',
         src
       });
       const { message } = await waitForEvent(webview, 'console-message');
@@ -166,7 +163,6 @@ describe('<webview> tag', function () {
     (nativeModulesEnabled ? it : it.skip)('loads native modules when navigation happens', async function () {
       await loadWebView(webview, {
         nodeintegration: 'on',
-        webpreferences: 'contextIsolation=no',
         src: `file://${fixtures}/pages/native-module.html`
       });
 
@@ -181,8 +177,7 @@ describe('<webview> tag', function () {
     it('loads the script before other scripts in window', async () => {
       const message = await startLoadingWebViewAndWaitForMessage(webview, {
         preload: `${fixtures}/module/preload.js`,
-        src: `file://${fixtures}/pages/e.html`,
-        contextIsolation: false
+        src: `file://${fixtures}/pages/e.html`
       });
 
       expect(message).to.be.a('string');
@@ -348,7 +343,6 @@ describe('<webview> tag', function () {
       const message = await startLoadingWebViewAndWaitForMessage(webview, {
         disablewebsecurity: '',
         nodeintegration: 'on',
-        webpreferences: 'contextIsolation=no',
         src: `file://${fixtures}/pages/d.html`
       });
 
@@ -397,7 +391,6 @@ describe('<webview> tag', function () {
       const message = await startLoadingWebViewAndWaitForMessage(webview, {
         nodeintegration: 'on',
         partition: 'test2',
-        webpreferences: 'contextIsolation=no',
         src: `file://${fixtures}/pages/d.html`
       });
 
@@ -471,7 +464,7 @@ describe('<webview> tag', function () {
     it('can enable nodeintegration', async () => {
       const message = await startLoadingWebViewAndWaitForMessage(webview, {
         src: `file://${fixtures}/pages/d.html`,
-        webpreferences: 'nodeIntegration,contextIsolation=no'
+        webpreferences: 'nodeIntegration'
       });
 
       const types = JSON.parse(message);
@@ -500,7 +493,7 @@ describe('<webview> tag', function () {
 
       const message = await startLoadingWebViewAndWaitForMessage(webview, {
         src: `data:text/html;base64,${encoded}`,
-        webpreferences: 'webSecurity=no, nodeIntegration=yes, contextIsolation=no'
+        webpreferences: 'webSecurity=no, nodeIntegration=yes'
       });
 
       expect(message).to.equal('function');
@@ -533,7 +526,6 @@ describe('<webview> tag', function () {
     it('emits when guest sends an ipc message to browser', async () => {
       loadWebView(webview, {
         nodeintegration: 'on',
-        webpreferences: 'contextIsolation=no',
         src: `file://${fixtures}/pages/ipc-message.html`
       });
       const { channel, args } = await waitForEvent(webview, 'ipc-message');
@@ -718,7 +710,6 @@ describe('<webview> tag', function () {
     it('should emit beforeunload handler', async () => {
       await loadWebView(webview, {
         nodeintegration: 'on',
-        webpreferences: 'contextIsolation=no',
         src: `file://${fixtures}/pages/beforeunload-false.html`
       });
 
@@ -830,7 +821,6 @@ describe('<webview> tag', function () {
         });
         loadWebView(webview, {
           nodeintegration: 'on',
-          webpreferences: 'contextIsolation=no',
           src: `file://${fixtures}/pages/basic-auth.html?port=${port}`
         });
       });
@@ -906,7 +896,6 @@ describe('<webview> tag', function () {
     it('can send keyboard event', async () => {
       loadWebView(webview, {
         nodeintegration: 'on',
-        webpreferences: 'contextIsolation=no',
         src: `file://${fixtures}/pages/onkeyup.html`
       });
       await waitForEvent(webview, 'dom-ready');
@@ -926,7 +915,6 @@ describe('<webview> tag', function () {
     it('can send mouse event', async () => {
       loadWebView(webview, {
         nodeintegration: 'on',
-        webpreferences: 'contextIsolation=no',
         src: `file://${fixtures}/pages/onmouseup.html`
       });
       await waitForEvent(webview, 'dom-ready');

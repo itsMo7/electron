@@ -987,7 +987,7 @@ describe('protocol module', () => {
       await registerStreamProtocol(standardScheme, protocolHandler);
       await registerStreamProtocol('stream', protocolHandler);
 
-      const newContents: WebContents = (webContents as any).create({ nodeIntegration: true, contextIsolation: false });
+      const newContents: WebContents = (webContents as any).create({ nodeIntegration: true });
       try {
         newContents.loadURL(testingScheme + '://fake-host');
         const [, response] = await emittedOnce(ipcMain, 'result');

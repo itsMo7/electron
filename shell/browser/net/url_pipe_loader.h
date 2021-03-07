@@ -11,6 +11,7 @@
 
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
+#include "mojo/public/cpp/bindings/strong_binding.h"
 #include "mojo/public/cpp/system/data_pipe_producer.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "services/network/public/cpp/simple_url_loader_stream_consumer.h"
@@ -34,7 +35,7 @@ class URLPipeLoader : public network::mojom::URLLoader,
  public:
   URLPipeLoader(scoped_refptr<network::SharedURLLoaderFactory> factory,
                 std::unique_ptr<network::ResourceRequest> request,
-                mojo::PendingReceiver<network::mojom::URLLoader> loader,
+                network::mojom::URLLoaderRequest loader,
                 mojo::PendingRemote<network::mojom::URLLoaderClient> client,
                 const net::NetworkTrafficAnnotationTag& annotation,
                 base::DictionaryValue upload_data);
@@ -68,7 +69,7 @@ class URLPipeLoader : public network::mojom::URLLoader,
   void PauseReadingBodyFromNet() override {}
   void ResumeReadingBodyFromNet() override {}
 
-  mojo::Receiver<network::mojom::URLLoader> url_loader_;
+  mojo::Binding<network::mojom::URLLoader> binding_;
   mojo::Remote<network::mojom::URLLoaderClient> client_;
 
   std::unique_ptr<mojo::DataPipeProducer> producer_;

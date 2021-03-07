@@ -1,1 +1,1 @@
-window.ping = 'pong';
+require('electron').ipcRenderer.send('answer', 'test');

@@ -21,8 +21,7 @@ describe('asar package', () => {
         width: 400,
         height: 400,
         webPreferences: {
-          nodeIntegration: true,
-          contextIsolation: false
+          nodeIntegration: true
         }
       });
       const p = path.resolve(asarDir, 'web.asar', 'index.html');
@@ -42,8 +41,7 @@ describe('asar package', () => {
         width: 400,
         height: 400,
         webPreferences: {
-          nodeIntegration: true,
-          contextIsolation: false
+          nodeIntegration: true
         }
       });
       const p = path.resolve(asarDir, 'script.asar', 'index.html');
@@ -65,8 +63,7 @@ describe('asar package', () => {
         width: 400,
         height: 400,
         webPreferences: {
-          nodeIntegration: true,
-          contextIsolation: false
+          nodeIntegration: true
         }
       });
       const p = path.resolve(asarDir, 'video.asar', 'index.html');
