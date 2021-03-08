@@ -52,8 +52,7 @@ describe('<webview> tag', function () {
       show: false,
       webPreferences: {
         webviewTag: true,
-        nodeIntegration: true,
-        contextIsolation: false
+        nodeIntegration: true
       }
     });
     w.loadFile(path.join(fixtures, 'pages', 'webview-no-script.html'));
@@ -170,8 +169,7 @@ describe('<webview> tag', function () {
         show: false,
         webPreferences: {
           webviewTag: true,
-          nodeIntegration: true,
-          contextIsolation: false
+          nodeIntegration: true
         }
       });
       const didAttachWebview = emittedOnce(w.webContents, 'did-attach-webview');
@@ -214,8 +212,7 @@ describe('<webview> tag', function () {
       show: false,
       webPreferences: {
         webviewTag: true,
-        nodeIntegration: true,
-        contextIsolation: false
+        nodeIntegration: true
       }
     });
     w.webContents.session.removeExtension('foo');
@@ -226,7 +223,6 @@ describe('<webview> tag', function () {
     w.loadFile(path.join(__dirname, 'fixtures', 'pages', 'webview-devtools.html'));
     loadWebView(w.webContents, {
       nodeintegration: 'on',
-      webpreferences: 'contextIsolation=no',
       src: `file://${path.join(__dirname, 'fixtures', 'blank.html')}`
     }, true);
     let childWebContentsId = 0;
@@ -275,8 +271,7 @@ describe('<webview> tag', function () {
         webPreferences: {
           webviewTag: true,
           nodeIntegration: true,
-          zoomFactor: 1.2,
-          contextIsolation: false
+          zoomFactor: 1.2
         }
       });
       const zoomEventPromise = emittedOnce(ipcMain, 'webview-parent-zoom-level');
@@ -293,8 +288,7 @@ describe('<webview> tag', function () {
         webPreferences: {
           webviewTag: true,
           nodeIntegration: true,
-          zoomFactor: 1.2,
-          contextIsolation: false
+          zoomFactor: 1.2
         }
       });
       const promise = new Promise<void>((resolve) => {
@@ -324,8 +318,7 @@ describe('<webview> tag', function () {
         webPreferences: {
           webviewTag: true,
           nodeIntegration: true,
-          zoomFactor: 1.2,
-          contextIsolation: false
+          zoomFactor: 1.2
         }
       });
       const promise = new Promise<void>((resolve) => {
@@ -350,8 +343,7 @@ describe('<webview> tag', function () {
         webPreferences: {
           webviewTag: true,
           nodeIntegration: true,
-          zoomFactor: 1.2,
-          contextIsolation: false
+          zoomFactor: 1.2
         }
       });
       w.loadFile(path.join(fixtures, 'pages', 'webview-origin-zoom-level.html'));
@@ -367,8 +359,7 @@ describe('<webview> tag', function () {
           webviewTag: true,
           nodeIntegration: true,
           zoomFactor: 1.2,
-          session: webviewSession,
-          contextIsolation: false
+          session: webviewSession
         }
       });
       const attachPromise = emittedOnce(w.webContents, 'did-attach-webview');
@@ -384,7 +375,7 @@ describe('<webview> tag', function () {
   describe('nativeWindowOpen option', () => {
     let w: BrowserWindow;
     beforeEach(async () => {
-      w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, webviewTag: true, contextIsolation: false } });
+      w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, webviewTag: true } });
       await w.loadURL('about:blank');
     });
     afterEach(closeAllWindows);
@@ -394,7 +385,7 @@ describe('<webview> tag', function () {
       loadWebView(w.webContents, {
         allowpopups: 'on',
         nodeintegration: 'on',
-        webpreferences: 'nativeWindowOpen=1,contextIsolation=no',
+        webpreferences: 'nativeWindowOpen=1',
         src: `file://${path.join(fixtures, 'api', 'native-window-open-blank.html')}`
       });
 
@@ -407,7 +398,7 @@ describe('<webview> tag', function () {
       loadWebView(w.webContents, {
         allowpopups: 'on',
         nodeintegration: 'on',
-        webpreferences: 'nativeWindowOpen=1,contextIsolation=no',
+        webpreferences: 'nativeWindowOpen=1',
         src: `file://${path.join(fixtures, 'api', 'native-window-open-file.html')}`
       });
 
@@ -419,7 +410,7 @@ describe('<webview> tag', function () {
       // Don't wait for loading to finish.
       loadWebView(w.webContents, {
         nodeintegration: 'on',
-        webpreferences: 'nativeWindowOpen=1,contextIsolation=no',
+        webpreferences: 'nativeWindowOpen=1',
         src: `file://${path.join(fixtures, 'api', 'native-window-open-no-allowpopups.html')}`
       });
 
@@ -432,7 +423,7 @@ describe('<webview> tag', function () {
       loadWebView(w.webContents, {
         allowpopups: 'on',
         nodeintegration: 'on',
-        webpreferences: 'nativeWindowOpen=1,contextIsolation=no',
+        webpreferences: 'nativeWindowOpen=1',
         src: `file://${path.join(fixtures, 'api', 'native-window-open-cross-origin.html')}`
       });
 
@@ -448,7 +439,7 @@ describe('<webview> tag', function () {
       const attributes = {
         allowpopups: 'on',
         nodeintegration: 'on',
-        webpreferences: 'nativeWindowOpen=1,contextIsolation=no',
+        webpreferences: 'nativeWindowOpen=1',
         src: `file://${fixtures}/pages/window-open.html`
       };
       const { url, frameName } = await w.webContents.executeJavaScript(`
@@ -472,7 +463,7 @@ describe('<webview> tag', function () {
       // Don't wait for loading to finish.
       loadWebView(w.webContents, {
         allowpopups: 'on',
-        webpreferences: 'nativeWindowOpen=1,contextIsolation=no',
+        webpreferences: 'nativeWindowOpen=1',
         src: `file://${fixtures}/pages/window-open.html`
       });
 
@@ -485,7 +476,7 @@ describe('<webview> tag', function () {
 
       loadWebView(w.webContents, {
         allowpopups: 'on',
-        webpreferences: 'nativeWindowOpen=1,contextIsolation=no',
+        webpreferences: 'nativeWindowOpen=1',
         src: `file://${fixtures}/pages/window-open.html`
       });
 
@@ -537,7 +528,7 @@ describe('<webview> tag', function () {
   describe('permission request handlers', () => {
     let w: BrowserWindow;
     beforeEach(async () => {
-      w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, webviewTag: true, contextIsolation: false } });
+      w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, webviewTag: true } });
       await w.loadURL('about:blank');
     });
     afterEach(closeAllWindows);
@@ -591,8 +582,7 @@ describe('<webview> tag', function () {
       loadWebView(w.webContents, {
         src: `file://${fixtures}/pages/permissions/geolocation.html`,
         partition,
-        nodeintegration: 'on',
-        webpreferences: 'contextIsolation=no'
+        nodeintegration: 'on'
       });
       const [, webViewContents] = await emittedOnce(app, 'web-contents-created');
       setUpRequestHandler(webViewContents.id, 'geolocation');
@@ -605,8 +595,7 @@ describe('<webview> tag', function () {
       loadWebView(w.webContents, {
         src: `file://${fixtures}/pages/permissions/midi.html`,
         partition,
-        nodeintegration: 'on',
-        webpreferences: 'contextIsolation=no'
+        nodeintegration: 'on'
       });
       const [, webViewContents] = await emittedOnce(app, 'web-contents-created');
       setUpRequestHandler(webViewContents.id, 'midi');
@@ -619,8 +608,7 @@ describe('<webview> tag', function () {
       loadWebView(w.webContents, {
         src: `file://${fixtures}/pages/permissions/midi-sysex.html`,
         partition,
-        nodeintegration: 'on',
-        webpreferences: 'contextIsolation=no'
+        nodeintegration: 'on'
       });
       const [, webViewContents] = await emittedOnce(app, 'web-contents-created');
       setUpRequestHandler(webViewContents.id, 'midiSysex');
@@ -642,8 +630,7 @@ describe('<webview> tag', function () {
       loadWebView(w.webContents, {
         src: `file://${fixtures}/pages/permissions/notification.html`,
         partition,
-        nodeintegration: 'on',
-        webpreferences: 'contextIsolation=no'
+        nodeintegration: 'on'
       });
       const [, webViewContents] = await emittedOnce(app, 'web-contents-created');
 

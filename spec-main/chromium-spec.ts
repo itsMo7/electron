@@ -89,7 +89,7 @@ describe('window.postMessage', () => {
   for (const nativeWindowOpen of [true, false]) {
     describe(`when nativeWindowOpen: ${nativeWindowOpen}`, () => {
       it('sets the source and origin correctly', async () => {
-        const w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, nativeWindowOpen, contextIsolation: false } });
+        const w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, nativeWindowOpen } });
         w.loadURL(`file://${fixturesPath}/pages/window-open-postMessage-driver.html`);
         const [, message] = await emittedOnce(ipcMain, 'complete');
         expect(message.data).to.equal('testing');
@@ -110,8 +110,7 @@ describe('focus handling', () => {
       show: true,
       webPreferences: {
         nodeIntegration: true,
-        webviewTag: true,
-        contextIsolation: false
+        webviewTag: true
       }
     });
 
@@ -231,7 +230,7 @@ describe('web security', () => {
   });
 
   it('engages CORB when web security is not disabled', async () => {
-    const w = new BrowserWindow({ show: false, webPreferences: { webSecurity: true, nodeIntegration: true, contextIsolation: false } });
+    const w = new BrowserWindow({ show: false, webPreferences: { webSecurity: true, nodeIntegration: true } });
     const p = emittedOnce(ipcMain, 'success');
     await w.loadURL(`data:text/html,<script>
         const s = document.createElement('script')
@@ -245,7 +244,7 @@ describe('web security', () => {
   });
 
   it('bypasses CORB when web security is disabled', async () => {
-    const w = new BrowserWindow({ show: false, webPreferences: { webSecurity: false, nodeIntegration: true, contextIsolation: false } });
+    const w = new BrowserWindow({ show: false, webPreferences: { webSecurity: false, nodeIntegration: true } });
     const p = emittedOnce(ipcMain, 'success');
     await w.loadURL(`data:text/html,
       <script>
@@ -256,7 +255,7 @@ describe('web security', () => {
   });
 
   it('engages CORS when web security is not disabled', async () => {
-    const w = new BrowserWindow({ show: false, webPreferences: { webSecurity: true, nodeIntegration: true, contextIsolation: false } });
+    const w = new BrowserWindow({ show: false, webPreferences: { webSecurity: true, nodeIntegration: true } });
     const p = emittedOnce(ipcMain, 'response');
     await w.loadURL(`data:text/html,<script>
         (async function() {
@@ -273,7 +272,7 @@ describe('web security', () => {
   });
 
   it('bypasses CORS when web security is disabled', async () => {
-    const w = new BrowserWindow({ show: false, webPreferences: { webSecurity: false, nodeIntegration: true, contextIsolation: false } });
+    const w = new BrowserWindow({ show: false, webPreferences: { webSecurity: false, nodeIntegration: true } });
     const p = emittedOnce(ipcMain, 'response');
     await w.loadURL(`data:text/html,<script>
         (async function() {
@@ -453,8 +452,7 @@ describe('chromium features', () => {
         show: false,
         webPreferences: {
           nodeIntegration: true,
-          partition: 'sw-file-scheme-spec',
-          contextIsolation: false
+          partition: 'sw-file-scheme-spec'
         }
       });
       w.webContents.on('ipc-message', (event, channel, message) => {
@@ -491,8 +489,7 @@ describe('chromium features', () => {
         show: false,
         webPreferences: {
           nodeIntegration: true,
-          session: customSession,
-          contextIsolation: false
+          session: customSession
         }
       });
       w.webContents.on('ipc-message', (event, channel, message) => {
@@ -520,8 +517,7 @@ describe('chromium features', () => {
         webPreferences: {
           nodeIntegration: true,
           nodeIntegrationInWorker: true,
-          partition: 'sw-file-scheme-worker-spec',
-          contextIsolation: false
+          partition: 'sw-file-scheme-worker-spec'
         }
       });
 
@@ -555,8 +551,7 @@ describe('chromium features', () => {
         show: false,
         webPreferences: {
           nodeIntegration: true,
-          partition: 'geolocation-spec',
-          contextIsolation: false
+          partition: 'geolocation-spec'
         }
       });
       const message = emittedOnce(w.webContents, 'ipc-message');
@@ -675,7 +670,7 @@ describe('chromium features', () => {
       const w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true } });
       w.loadURL('about:blank');
       w.webContents.executeJavaScript(`
-        { b = window.open('devtools://devtools/bundled/inspector.html', '', 'nodeIntegration=no,show=no'); null }
+        b = window.open('devtools://devtools/bundled/inspector.html', '', 'nodeIntegration=no,show=no')
       `);
       const [, contents] = await emittedOnce(app, 'web-contents-created');
       const typeofProcessGlobal = await contents.executeJavaScript('typeof process');
@@ -691,7 +686,7 @@ describe('chromium features', () => {
         slashes: true
       });
       w.webContents.executeJavaScript(`
-        { b = window.open(${JSON.stringify(windowUrl)}, '', 'javascript=no,show=no'); null }
+        b = window.open(${JSON.stringify(windowUrl)}, '', 'javascript=no,show=no')
       `);
       const [, contents] = await emittedOnce(app, 'web-contents-created');
       await emittedOnce(contents, 'did-finish-load');
@@ -801,8 +796,7 @@ describe('chromium features', () => {
       const w = new BrowserWindow({
         show: false,
         webPreferences: {
-          nodeIntegration: true,
-          contextIsolation: false
+          nodeIntegration: true
         }
       });
       w.loadFile(path.join(fixturesPath, 'pages', 'window-opener.html'));
@@ -839,8 +833,7 @@ describe('chromium features', () => {
         show: false,
         webPreferences: {
           nodeIntegration: true,
-          session: ses,
-          contextIsolation: false
+          session: ses
         }
       });
       w.loadFile(path.join(fixturesPath, 'pages', 'media-id-reset.html'));
@@ -855,8 +848,7 @@ describe('chromium features', () => {
         show: false,
         webPreferences: {
           nodeIntegration: true,
-          session: ses,
-          contextIsolation: false
+          session: ses
         }
       });
       w.loadFile(path.join(fixturesPath, 'pages', 'media-id-reset.html'));
@@ -924,7 +916,7 @@ describe('chromium features', () => {
         for (const sandboxPopup of [false, true]) {
           const description = `when parent=${s(parent)} opens child=${s(child)} with nodeIntegration=${nodeIntegration} nativeWindowOpen=${nativeWindowOpen} sandboxPopup=${sandboxPopup}, child should ${openerAccessible ? '' : 'not '}be able to access opener`;
           it(description, async () => {
-            const w = new BrowserWindow({ show: true, webPreferences: { nodeIntegration: true, nativeWindowOpen, contextIsolation: false } });
+            const w = new BrowserWindow({ show: true, webPreferences: { nodeIntegration: true, nativeWindowOpen } });
             w.webContents.setWindowOpenHandler(() => ({
               action: 'allow',
               overrideBrowserWindowOptions: {
@@ -963,7 +955,7 @@ describe('chromium features', () => {
           // We are testing whether context (3) can access context (2) under various conditions.
 
           // This is context (1), the base window for the test.
-          const w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, webviewTag: true, contextIsolation: false } });
+          const w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, webviewTag: true } });
           await w.loadURL('about:blank');
 
           const parentCode = `new Promise((resolve) => {
@@ -977,7 +969,7 @@ describe('chromium features', () => {
             // This is context (2), a WebView which will call window.open()
             const webview = new WebView()
             webview.setAttribute('nodeintegration', '${nodeIntegration ? 'on' : 'off'}')
-            webview.setAttribute('webpreferences', 'nativeWindowOpen=${nativeWindowOpen ? 'yes' : 'no'},contextIsolation=no')
+            webview.setAttribute('webpreferences', 'nativeWindowOpen=${nativeWindowOpen ? 'yes' : 'no'}')
             webview.setAttribute('allowpopups', 'on')
             webview.src = ${JSON.stringify(parent + '?p=' + encodeURIComponent(child))}
             webview.addEventListener('dom-ready', async () => {
@@ -1021,8 +1013,7 @@ describe('chromium features', () => {
 
       beforeEach(() => {
         contents = (webContents as any).create({
-          nodeIntegration: true,
-          contextIsolation: false
+          nodeIntegration: true
         });
       });
 
@@ -1154,8 +1145,7 @@ describe('chromium features', () => {
       it('default value allows websql', async () => {
         contents = (webContents as any).create({
           session: sqlSession,
-          nodeIntegration: true,
-          contextIsolation: false
+          nodeIntegration: true
         });
         contents.loadURL(origin);
         const [, error] = await emittedOnce(ipcMain, 'web-sql-response');
@@ -1166,8 +1156,7 @@ describe('chromium features', () => {
         contents = (webContents as any).create({
           session: sqlSession,
           nodeIntegration: true,
-          enableWebSQL: false,
-          contextIsolation: false
+          enableWebSQL: false
         });
         contents.loadURL(origin);
         const [, error] = await emittedOnce(ipcMain, 'web-sql-response');
@@ -1178,8 +1167,7 @@ describe('chromium features', () => {
         contents = (webContents as any).create({
           session: sqlSession,
           nodeIntegration: true,
-          enableWebSQL: false,
-          contextIsolation: false
+          enableWebSQL: false
         });
         contents.loadURL(origin);
         const [, error] = await emittedOnce(ipcMain, 'web-sql-response');
@@ -1208,8 +1196,7 @@ describe('chromium features', () => {
           webPreferences: {
             nodeIntegration: true,
             webviewTag: true,
-            session: sqlSession,
-            contextIsolation: false
+            session: sqlSession
           }
         });
         w.webContents.loadURL(origin);
@@ -1220,7 +1207,7 @@ describe('chromium features', () => {
           new Promise((resolve, reject) => {
             const webview = new WebView();
             webview.setAttribute('src', '${origin}');
-            webview.setAttribute('webpreferences', 'enableWebSQL=0,contextIsolation=no');
+            webview.setAttribute('webpreferences', 'enableWebSQL=0');
             webview.setAttribute('partition', '${sqlPartition}');
             webview.setAttribute('nodeIntegration', 'on');
             document.body.appendChild(webview);
@@ -1238,8 +1225,7 @@ describe('chromium features', () => {
             nodeIntegration: true,
             enableWebSQL: false,
             webviewTag: true,
-            session: sqlSession,
-            contextIsolation: false
+            session: sqlSession
           }
         });
         w.webContents.loadURL('data:text/html,<html></html>');
@@ -1248,7 +1234,7 @@ describe('chromium features', () => {
           new Promise((resolve, reject) => {
             const webview = new WebView();
             webview.setAttribute('src', '${origin}');
-            webview.setAttribute('webpreferences', 'enableWebSQL=1,contextIsolation=no');
+            webview.setAttribute('webpreferences', 'enableWebSQL=1');
             webview.setAttribute('partition', '${sqlPartition}');
             webview.setAttribute('nodeIntegration', 'on');
             document.body.appendChild(webview);
@@ -1265,8 +1251,7 @@ describe('chromium features', () => {
           webPreferences: {
             nodeIntegration: true,
             webviewTag: true,
-            session: sqlSession,
-            contextIsolation: false
+            session: sqlSession
           }
         });
         w.webContents.loadURL(origin);
@@ -1277,7 +1262,7 @@ describe('chromium features', () => {
           new Promise((resolve, reject) => {
             const webview = new WebView();
             webview.setAttribute('src', '${origin}');
-            webview.setAttribute('webpreferences', 'enableWebSQL=1,contextIsolation=no');
+            webview.setAttribute('webpreferences', 'enableWebSQL=1');
             webview.setAttribute('partition', '${sqlPartition}');
             webview.setAttribute('nodeIntegration', 'on');
             document.body.appendChild(webview);
@@ -1421,8 +1406,7 @@ describe('iframe using HTML fullscreen API while window is OS-fullscreened', () 
       fullscreen: true,
       webPreferences: {
         nodeIntegration: true,
-        nodeIntegrationInSubFrames: true,
-        contextIsolation: false
+        nodeIntegrationInSubFrames: true
       }
     });
   });
@@ -1578,6 +1562,12 @@ describe('navigator.clipboard', () => {
 
 ifdescribe((process.platform !== 'linux' || app.isUnityRunning()))('navigator.setAppBadge/clearAppBadge', () => {
   let w: BrowserWindow;
+  before(async () => {
+    w = new BrowserWindow({
+      show: false
+    });
+    await w.loadFile(path.join(fixturesPath, 'pages', 'blank.html'));
+  });
 
   const expectedBadgeCount = 42;
 
@@ -1597,116 +1587,29 @@ ifdescribe((process.platform !== 'linux' || app.isUnityRunning()))('navigator.se
     return badgeCount;
   }
 
-  describe('in the renderer', () => {
-    before(async () => {
-      w = new BrowserWindow({
-        show: false
-      });
-      await w.loadFile(path.join(fixturesPath, 'pages', 'blank.html'));
-    });
-
-    after(() => {
-      app.badgeCount = 0;
-      closeAllWindows();
-    });
-
-    it('setAppBadge can set a numerical value', async () => {
-      const result = await fireAppBadgeAction('set', expectedBadgeCount);
-      expect(result).to.equal('success');
-      expect(waitForBadgeCount(expectedBadgeCount)).to.eventually.equal(expectedBadgeCount);
-    });
-
-    it('setAppBadge can set an empty(dot) value', async () => {
-      const result = await fireAppBadgeAction('set');
-      expect(result).to.equal('success');
-      expect(waitForBadgeCount(0)).to.eventually.equal(0);
-    });
-
-    it('clearAppBadge can clear a value', async () => {
-      let result = await fireAppBadgeAction('set', expectedBadgeCount);
-      expect(result).to.equal('success');
-      expect(waitForBadgeCount(expectedBadgeCount)).to.eventually.equal(expectedBadgeCount);
-      result = await fireAppBadgeAction('clear');
-      expect(result).to.equal('success');
-      expect(waitForBadgeCount(0)).to.eventually.equal(0);
-    });
+  after(() => {
+    app.badgeCount = 0;
+    closeAllWindows();
   });
 
-  describe('in a service worker', () => {
-    beforeEach(async () => {
-      w = new BrowserWindow({
-        show: false,
-        webPreferences: {
-          nodeIntegration: true,
-          partition: 'sw-file-scheme-spec',
-          contextIsolation: false
-        }
-      });
-    });
-
-    afterEach(() => {
-      app.badgeCount = 0;
-      closeAllWindows();
-    });
-
-    it('setAppBadge can be called in a ServiceWorker', (done) => {
-      w.webContents.on('ipc-message', (event, channel, message) => {
-        if (channel === 'reload') {
-          w.webContents.reload();
-        } else if (channel === 'error') {
-          done(message);
-        } else if (channel === 'response') {
-          expect(message).to.equal('SUCCESS setting app badge');
-          expect(waitForBadgeCount(expectedBadgeCount)).to.eventually.equal(expectedBadgeCount);
-          session.fromPartition('sw-file-scheme-spec').clearStorageData({
-            storages: ['serviceworkers']
-          }).then(() => done());
-        }
-      });
-      w.webContents.on('crashed', () => done(new Error('WebContents crashed.')));
-      w.loadFile(path.join(fixturesPath, 'pages', 'service-worker', 'badge-index.html'), { search: '?setBadge' });
-    });
-
-    it('clearAppBadge can be called in a ServiceWorker', (done) => {
-      w.webContents.on('ipc-message', (event, channel, message) => {
-        if (channel === 'reload') {
-          w.webContents.reload();
-        } else if (channel === 'setAppBadge') {
-          expect(message).to.equal('SUCCESS setting app badge');
-          expect(waitForBadgeCount(expectedBadgeCount)).to.eventually.equal(expectedBadgeCount);
-        } else if (channel === 'error') {
-          done(message);
-        } else if (channel === 'response') {
-          expect(message).to.equal('SUCCESS clearing app badge');
-          expect(waitForBadgeCount(expectedBadgeCount)).to.eventually.equal(expectedBadgeCount);
-          session.fromPartition('sw-file-scheme-spec').clearStorageData({
-            storages: ['serviceworkers']
-          }).then(() => done());
-        }
-      });
-      w.webContents.on('crashed', () => done(new Error('WebContents crashed.')));
-      w.loadFile(path.join(fixturesPath, 'pages', 'service-worker', 'badge-index.html'), { search: '?clearBadge' });
-    });
-  });
-});
-
-describe('navigator.bluetooth', () => {
-  let w: BrowserWindow;
-  before(async () => {
-    w = new BrowserWindow({
-      show: false,
-      webPreferences: {
-        enableBlinkFeatures: 'WebBluetooth'
-      }
-    });
-    await w.loadFile(path.join(fixturesPath, 'pages', 'blank.html'));
+  it('setAppBadge can set a numerical value', async () => {
+    const result = await fireAppBadgeAction('set', expectedBadgeCount);
+    expect(result).to.equal('success');
+    expect(waitForBadgeCount(expectedBadgeCount)).to.eventually.equal(expectedBadgeCount);
   });
 
-  after(closeAllWindows);
+  it('setAppBadge can set an empty(dot) value', async () => {
+    const result = await fireAppBadgeAction('set');
+    expect(result).to.equal('success');
+    expect(waitForBadgeCount(0)).to.eventually.equal(0);
+  });
 
-  it('can request bluetooth devices', async () => {
-    const bluetooth = await w.webContents.executeJavaScript(`
-    navigator.bluetooth.requestDevice({ acceptAllDevices: true}).then(device => "Found a device!").catch(err => err.message);`, true);
-    expect(bluetooth).to.be.oneOf(['Found a device!', 'Bluetooth adapter not available.', 'User cancelled the requestDevice() chooser.']);
+  it('clearAppBadge can clear a value', async () => {
+    let result = await fireAppBadgeAction('set', expectedBadgeCount);
+    expect(result).to.equal('success');
+    expect(waitForBadgeCount(expectedBadgeCount)).to.eventually.equal(expectedBadgeCount);
+    result = await fireAppBadgeAction('clear');
+    expect(result).to.equal('success');
+    expect(waitForBadgeCount(0)).to.eventually.equal(0);
   });
 });

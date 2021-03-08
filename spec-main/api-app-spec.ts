@@ -286,20 +286,13 @@ describe('app module', () => {
           } else if (String(data) === 'true' && state === 'first-launch') {
             done();
           } else {
-            done(`Unexpected state: "${state}", data: "${data}"`);
+            done(`Unexpected state: ${state}`);
           }
         });
       });
 
       const appPath = path.join(fixturesPath, 'api', 'relaunch');
-      const child = cp.spawn(process.execPath, [appPath]);
-      child.stdout.on('data', (c) => console.log(c.toString()));
-      child.stderr.on('data', (c) => console.log(c.toString()));
-      child.on('exit', (code) => {
-        if (code !== 0) {
-          done(`Process exited with code ${code}`);
-        }
-      });
+      cp.spawn(process.execPath, [appPath]);
     });
   });
 
@@ -416,8 +409,7 @@ describe('app module', () => {
       w = new BrowserWindow({
         show: false,
         webPreferences: {
-          nodeIntegration: true,
-          contextIsolation: false
+          nodeIntegration: true
         }
       });
       await w.loadURL('about:blank');
@@ -434,8 +426,7 @@ describe('app module', () => {
       w = new BrowserWindow({
         show: false,
         webPreferences: {
-          nodeIntegration: true,
-          contextIsolation: false
+          nodeIntegration: true
         }
       });
       await w.loadURL('about:blank');
@@ -453,8 +444,7 @@ describe('app module', () => {
         w = new BrowserWindow({
           show: false,
           webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false
+            nodeIntegration: true
           }
         });
         await w.loadURL('about:blank');
@@ -473,8 +463,7 @@ describe('app module', () => {
           show: false,
           webPreferences: {
             nodeIntegration: true,
-            enableRemoteModule: true,
-            contextIsolation: false
+            enableRemoteModule: true
           }
         });
         await w.loadURL('about:blank');
@@ -492,8 +481,7 @@ describe('app module', () => {
           show: false,
           webPreferences: {
             nodeIntegration: true,
-            enableRemoteModule: true,
-            contextIsolation: false
+            enableRemoteModule: true
           }
         });
         await w.loadURL('about:blank');
@@ -511,8 +499,7 @@ describe('app module', () => {
           show: false,
           webPreferences: {
             nodeIntegration: true,
-            enableRemoteModule: true,
-            contextIsolation: false
+            enableRemoteModule: true
           }
         });
         await w.loadURL('about:blank');
@@ -530,8 +517,7 @@ describe('app module', () => {
           show: false,
           webPreferences: {
             nodeIntegration: true,
-            enableRemoteModule: true,
-            contextIsolation: false
+            enableRemoteModule: true
           }
         });
         await w.loadURL('about:blank');
@@ -548,8 +534,7 @@ describe('app module', () => {
           show: false,
           webPreferences: {
             nodeIntegration: true,
-            enableRemoteModule: true,
-            contextIsolation: false
+            enableRemoteModule: true
           }
         });
         await w.loadURL('about:blank');

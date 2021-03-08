@@ -16,8 +16,7 @@ app.whenReady().then(() => {
   window = new BrowserWindow({
     show: false,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
+      nodeIntegration: true
     }
   });
 

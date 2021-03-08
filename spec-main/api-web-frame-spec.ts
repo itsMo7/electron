@@ -48,8 +48,7 @@ describe('webFrame module', () => {
     const w = new BrowserWindow({
       show: false,
       webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false
+        nodeIntegration: true
       }
     });
     await w.loadFile(path.join(fixtures, 'pages', 'webframe-spell-check.html'));

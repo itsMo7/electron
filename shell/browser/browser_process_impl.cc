@@ -128,6 +128,10 @@ metrics::MetricsService* BrowserProcessImpl::metrics_service() {
   return nullptr;
 }
 
+rappor::RapporServiceImpl* BrowserProcessImpl::rappor_service() {
+  return nullptr;
+}
+
 ProfileManager* BrowserProcessImpl::profile_manager() {
   return nullptr;
 }

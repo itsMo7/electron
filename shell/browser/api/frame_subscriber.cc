@@ -62,10 +62,9 @@ void FrameSubscriber::DetachFromHost() {
   host_ = nullptr;
 }
 
-void FrameSubscriber::RenderFrameCreated(
-    content::RenderFrameHost* render_frame_host) {
+void FrameSubscriber::RenderViewCreated(content::RenderViewHost* host) {
   if (!host_)
-    AttachToHost(render_frame_host->GetRenderWidgetHost());
+    AttachToHost(host->GetWidget());
 }
 
 void FrameSubscriber::RenderViewDeleted(content::RenderViewHost* host) {
